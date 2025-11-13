@@ -1,0 +1,29 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+	<Import Project=".steam.props" />
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="PluginConfig.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Krafs.Publicizer" Version="2.1.0" />
+	      <PackageReference Include="ManagedBass" Version="4.0.2" />
+    <PackageReference Include="ManagedBass.Hls" Version="4.0.2" />
+    <PackageReference Include="ManagedBass.Mix" Version="4.0.2" />	  <PackageReference Include="ManagedBass" Version="4.0.2" />
+	  <PackageReference Include="ManagedBass.Hls" Version="4.0.2" />
+	  
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="0Harmony">
+      <HintPath>G:\Program Files (x86)\SteamLibrary\steamapps\common\Haste\BepInEx\core\0Harmony.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+</Project>
