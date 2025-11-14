@@ -5,9 +5,9 @@ using UnityEngine;
 
 public static class LandfallConfig
 {
-    public static string ConfigDirectory => WorkshopHelper.ModDirectory;
-    public static string ConfigPath => Path.Combine(ConfigDirectory, "HasteCustomMusic_config.json");
-    public static string PlaylistsPath => Path.Combine(ConfigDirectory, "HasteCustomMusic_playlists.json");
+    public static string ConfigDirectory => WorkshopHelper._persistentDataDirectory;
+    public static string ConfigPath => WorkshopHelper.ConfigPath;
+    public static string PlaylistsPath => WorkshopHelper.PlaylistsPath;
 
     [Serializable]
     public class ConfigData
@@ -47,26 +47,29 @@ public static class LandfallConfig
     public static PlaylistData CurrentPlaylists { get; private set; } = new PlaylistData();
 
     private static bool _isInitialized = false;
+    private static bool _defaultPlaylistsCreated = false;
     private static float _lastSaveTime = 0f;
     private static float _lastPlaylistSaveTime = 0f;
 
+    private static readonly string[] DefaultStreams = new string[]
+    {
+        "https://c22.radioboss.fm/stream/144",
+        "http://funkyunclefm.net:8000/fufm",
+        "https://icecast.radiofrance.fr/fip-hifi.aac",
+        "http://stream.animeradio.de/animeradio.mp3"
+    };
     public static void Initialize()
     {
         if (_isInitialized) return;
 
         try
         {
-            Debug.Log($"Initializing LandfallConfig in: {ConfigDirectory}");
+            // Initialize persistent directory structure
+            WorkshopHelper.InitializePersistentDirectory();
 
-            // Ensure directory exists
-            if (!Directory.Exists(ConfigDirectory))
-                Directory.CreateDirectory(ConfigDirectory);
-
-
-                // Load existing config if no migration
-                LoadConfig();
-                LoadPlaylists();
-          
+            LoadConfig();
+            LoadPlaylists();
+            PlaylistBridge.SyncToCustomMusicManager();
 
             _isInitialized = true;
             Debug.Log("LandfallConfig initialized successfully");
@@ -74,6 +77,7 @@ public static class LandfallConfig
         catch (Exception ex)
         {
             Debug.LogError($"Failed to initialize LandfallConfig: {ex}");
+            // Continue with default values
             CurrentConfig = new ConfigData();
             CurrentPlaylists = new PlaylistData();
             _isInitialized = true;
@@ -95,17 +99,17 @@ public static class LandfallConfig
             }
             else
             {
-                // NEW: Set default music path to CustomMusic directory in mod folder
-                CurrentConfig.LocalMusicPath = WorkshopHelper.CustomMusicDirectory;
+                // First-time setup: set default music path
+                CurrentConfig.LocalMusicPath = WorkshopHelper.DefaultMusicPath;
                 SaveConfig();
-                Debug.Log($"Created default config file with path: {CurrentConfig.LocalMusicPath}");
+                Debug.Log("Created default config with music path: " + WorkshopHelper.DefaultMusicPath);
             }
         }
         catch (Exception ex)
         {
             Debug.LogError($"Error loading config: {ex}");
             CurrentConfig = new ConfigData();
-            CurrentConfig.LocalMusicPath = WorkshopHelper.CustomMusicDirectory; // Fallback
+            CurrentConfig.LocalMusicPath = WorkshopHelper.DefaultMusicPath;
         }
     }
 
@@ -120,18 +124,35 @@ public static class LandfallConfig
                 string json = File.ReadAllText(PlaylistsPath);
                 CurrentPlaylists = JsonUtility.FromJson<PlaylistData>(json) ?? new PlaylistData();
                 Debug.Log($"Playlists loaded: {CurrentPlaylists.HybridPlaylist.Count} hybrid, {CurrentPlaylists.StreamsPlaylist.Count} streams");
+                _defaultPlaylistsCreated = true;
             }
             else
             {
-                Debug.Log("No existing playlists file found - starting with empty playlists");
-                CurrentPlaylists = new PlaylistData();
-                SavePlaylists(); 
+                // First-time setup: create with empty Hybrid and default Streams
+                Debug.Log("First run: Creating default playlists file");
+
+                // Ensure we start with clean lists
+                CurrentPlaylists.HybridPlaylist.Clear();
+                CurrentPlaylists.StreamsPlaylist.Clear();
+
+                // Add default streams
+                CurrentPlaylists.StreamsPlaylist.AddRange(DefaultStreams);
+
+                // Save the new playlists file
+                SavePlaylists();
+                _defaultPlaylistsCreated = true;
+
+                Debug.Log($"Created default playlists: {CurrentPlaylists.HybridPlaylist.Count} hybrid, {CurrentPlaylists.StreamsPlaylist.Count} streams");
             }
         }
         catch (Exception ex)
         {
             Debug.LogError($"Error loading playlists: {ex}");
-            CurrentPlaylists = new PlaylistData();
+            // Ensure we have valid defaults even on error
+            CurrentPlaylists.HybridPlaylist.Clear();
+            CurrentPlaylists.StreamsPlaylist.Clear();
+            CurrentPlaylists.StreamsPlaylist.AddRange(DefaultStreams);
+            _defaultPlaylistsCreated = true;
         }
     }
     public static void LoadHybridPlaylist()
@@ -191,8 +212,6 @@ public static class LandfallConfig
 
     public static void SaveConfig()
     {
-        // Prevent rapid successive saves
-        if (Time.unscaledTime - _lastSaveTime < 0.5f) return;
 
         try
         {
@@ -211,9 +230,6 @@ public static class LandfallConfig
 
     public static void SavePlaylists()
     {
-        // Prevent rapid successive saves
-        if (Time.unscaledTime - _lastPlaylistSaveTime < 0.5f) return;
-
         try
         {
             string json = JsonUtility.ToJson(CurrentPlaylists, true);
@@ -265,7 +281,6 @@ public static class LandfallConfig
         set
         {
             CurrentConfig.PlayOrder = value.ToString();
-            SaveConfig();
         }
     }
     public static bool LoadHybridPlaylistOnly()
@@ -322,7 +337,7 @@ public static class LandfallConfig
             }
 
             // Clear current and replace with loaded streams
-            CurrentPlaylists.StreamsPlaylist = new List<string>(filePlaylists.StreamsPlaylist);
+            CurrentPlaylists.StreamsPlaylist = [.. filePlaylists.StreamsPlaylist];
 
             Debug.Log($"Streams playlist loaded: {CurrentPlaylists.StreamsPlaylist.Count} streams");
             return true;

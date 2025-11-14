@@ -7,78 +7,81 @@ public static class WorkshopHelper
 {
     private static string _modDirectory;
     private static string _customMusicDirectory;
+    private static string _gameRoot;
+    public static string _persistentDataDirectory;
 
-    public static string ModDirectory
+    public static string ModDirectory = GetModDirectory();
+    public static string GetModDirectory()
+    {
+        try
+        {
+            var assemblyLocation = Assembly.GetExecutingAssembly().Location;
+            return Path.GetDirectoryName(assemblyLocation);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"Error getting mod directory: {ex}");
+            return PersistentDataPath; // Fallback
+        }
+    }
+    public static string GameRoot
     {
         get
         {
-            if (_modDirectory == null)
+            if (_gameRoot == null)
             {
-                // Method 1: Try assembly location first (for workshop/mod structure)
-                try
-                {
-                    var assemblyLocation = Assembly.GetExecutingAssembly().Location;
-                    if (!string.IsNullOrEmpty(assemblyLocation))
-                    {
-                        _modDirectory = Path.GetDirectoryName(assemblyLocation);
-                        Debug.Log($"Mod directory from assembly: {_modDirectory}");
+                // Application.dataPath = .../Haste_Data
+                _gameRoot = Directory.GetParent(Application.dataPath)?.FullName;
 
-                        // If this looks like a workshop/mod path, use it
-                        if (_modDirectory.Contains("workshop") || _modDirectory.Contains("Workshop") || _modDirectory.Contains("plugins"))
-                        {
-                            return _modDirectory;
-                        }
-                    }
-                }
-                catch (Exception ex)
+                if (string.IsNullOrEmpty(_gameRoot) || !Directory.Exists(_gameRoot))
                 {
-                    Debug.LogWarning($"Could not get assembly location: {ex}");
+                    // Fallback to executable path
+                    _gameRoot = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
                 }
 
-                // Method 2: Use persistent data path (fallback for development)
-                _modDirectory = Path.Combine(Application.persistentDataPath, "HasteCustomMusic");
-
-                Debug.Log($"Using persistent data path: {_modDirectory}");
+                Debug.Log($"Game root: {_gameRoot}");
             }
-
-            // Ensure the mod directory exists
-            if (!Directory.Exists(_modDirectory))
-            {
-                Directory.CreateDirectory(_modDirectory);
-            }
-
-            return _modDirectory;
+            return _gameRoot;
         }
     }
-
-    public static string CustomMusicDirectory
+    public static string PersistentDataPath
     {
         get
         {
-            if (_customMusicDirectory == null)
+            if (_persistentDataDirectory == null)
             {
-                // CustomMusic folder should be in the same directory as Managed/
-                _customMusicDirectory = Path.Combine(ModDirectory, "CustomMusic");
+                _persistentDataDirectory = Path.Combine(GameRoot, "HasteCustomMusic");
 
-                // Ensure the CustomMusic directory exists
-                if (!Directory.Exists(_customMusicDirectory))
+                // Create directory if it doesn't exist
+                if (!Directory.Exists(_persistentDataDirectory))
                 {
-                    try
-                    {
-                        Directory.CreateDirectory(_customMusicDirectory);
-                        Debug.Log($"Created CustomMusic directory: {_customMusicDirectory}");
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.LogError($"Failed to create CustomMusic directory: {ex}");
-                        // Fallback to mod directory if creation fails
-                        _customMusicDirectory = ModDirectory;
-                    }
+                    Directory.CreateDirectory(_persistentDataDirectory);
+                    Debug.Log($"Created persistent data directory: {_persistentDataDirectory}");
                 }
+
+                Debug.Log($"Persistent data path: {_persistentDataDirectory}");
             }
-            return _customMusicDirectory;
+            return _persistentDataDirectory;
         }
     }
 
-    
+    public static string DefaultMusicPath => Path.Combine(PersistentDataPath, "MusicHere");
+
+    // Config and playlist paths
+    public static string ConfigPath => Path.Combine(PersistentDataPath, "HasteCustomMusic_config.json");
+    public static string PlaylistsPath => Path.Combine(PersistentDataPath, "HasteCustomMusic_playlists.json");
+
+    public static void InitializePersistentDirectory()
+    {
+        // Ensure all directories exist
+        if (!Directory.Exists(PersistentDataPath))
+            Directory.CreateDirectory(PersistentDataPath);
+
+        if (!Directory.Exists(DefaultMusicPath))
+            Directory.CreateDirectory(DefaultMusicPath);
+
+        Debug.Log("Persistent directories initialized");
+    }
+
+
 }

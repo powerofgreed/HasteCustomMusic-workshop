@@ -19,11 +19,7 @@ using HarmonyLib;
 using HasteModPlaylist;
 using Landfall.Haste.Music;
 using Landfall.Modding;
-using System;
 using System.Collections;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using static CustomMusicManager;
@@ -38,12 +34,13 @@ public static class HasteCustomMusicLandfall
     private static MusicDisplayBehaviour _behaviour;
     private static LandfallSettingsWindow _settingsWindow;
     private static Harmony _harmony;
+    private static bool _isInitialized = false;
 
     static HasteCustomMusicLandfall()
     {
         Debug.Log("HasteCustomMusic: Loading Landfall/Steam Workshop version...");
 
-        // Initialize BASS FIRST using your existing loader
+        // Initialize BASS FIRST using your centralized loader
         if (!ManagedBassLoader.Initialize())
         {
             Debug.LogError("BASS initialization failed! Audio features will be disabled.");
@@ -141,7 +138,7 @@ public class MusicDisplayBehaviour : MonoBehaviour
 
                 _selectedTrackIndex = -1;
                 _lastClickedTrack = -1;
-                Debug.Log($"Active tab: {_activeTab}, Viewing: {_viewingPlaylistType}, Playing: {CustomMusicManager.CurrentPlaybackPlaylistType}");
+                if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log($"Active tab: {_activeTab}, Viewing: {_viewingPlaylistType}, Playing: {CustomMusicManager.CurrentPlaybackPlaylistType}");
             }
         }
     }
@@ -202,8 +199,6 @@ public class MusicDisplayBehaviour : MonoBehaviour
         _backgroundTexture.SetPixel(0, 0, new Color(0.1f, 0.1f, 0.85f, 0.7f));
         _backgroundTexture.Apply();
 
-        // Initialize all configuration
-        LandfallConfig.Initialize();
 
 
         Harmony.CreateAndPatchAll(typeof(CustomMusicManager));
@@ -214,8 +209,6 @@ public class MusicDisplayBehaviour : MonoBehaviour
 
     void Start()
     {
-        LandfallConfig.Initialize();
-        StartCoroutine(PlaylistBridge.LoadPlaylistsCoroutine());
         CalculateUIScale();
         _localMusicPath = LandfallConfig.CurrentConfig.LocalMusicPath;
 
@@ -524,7 +517,7 @@ public class MusicDisplayBehaviour : MonoBehaviour
             else
             {
                 // If path doesn't exist, check if it's the default CustomMusic directory
-                string defaultCustomMusicPath = WorkshopHelper.CustomMusicDirectory;
+                string defaultCustomMusicPath = WorkshopHelper.DefaultMusicPath;
                 if (string.Equals(configPath, defaultCustomMusicPath, StringComparison.OrdinalIgnoreCase))
                 {
                     // This should already exist from WorkshopHelper, but double-check
@@ -550,8 +543,8 @@ public class MusicDisplayBehaviour : MonoBehaviour
         }
 
         // Fallback to the CustomMusic directory
-        Debug.LogWarning($"Falling back to default CustomMusic directory: {WorkshopHelper.CustomMusicDirectory}");
-        return WorkshopHelper.CustomMusicDirectory;
+        Debug.LogWarning($"Falling back to default CustomMusic directory: {WorkshopHelper.DefaultMusicPath}");
+        return WorkshopHelper.DefaultMusicPath;
     }
 
     void DrawMusicWindow(int windowID)
@@ -2051,13 +2044,6 @@ public class MusicDisplayBehaviour : MonoBehaviour
     }
     void Update()
     {
-        if (Time.frameCount == 60) // After 60 frames
-        {
-            Debug.Log($"Config Directory: {LandfallConfig.ConfigDirectory}");
-            Debug.Log($"Config Path: {LandfallConfig.ConfigPath}");
-            Debug.Log($"Hybrid tracks: {CustomMusicManager.HybridTrackPaths?.Count ?? 0}");
-            Debug.Log($"Stream tracks: {CustomMusicManager.StreamsTrackPaths?.Count ?? 0}");
-        }
         if (LandfallConfig.CurrentConfig.ToggleUIKey.IsDown())
             _showGUI = !_showGUI;
 

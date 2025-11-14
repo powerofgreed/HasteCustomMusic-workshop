@@ -80,7 +80,6 @@ public class CustomMusicManager : MonoBehaviour
         set
         {
             LandfallConfig.CurrentConfig.LockEnabled = value;
-            LandfallConfig.SaveConfig();
         }
     }
 
@@ -166,7 +165,6 @@ public class CustomMusicManager : MonoBehaviour
             DontDestroyOnLoad(gameObject);
             _disposed = false;
 
-            InitializeFromLandfallConfig();
         }
         else if (_instance != this)
         {
@@ -183,26 +181,6 @@ public class CustomMusicManager : MonoBehaviour
         SafeCancelAndCleanup().ConfigureAwait(false);
     }
 
-    // ------------------------------
-    // Landfall Config Initialization
-    // ------------------------------
-    private void InitializeFromLandfallConfig()
-    {
-        try
-        {
-            // Initialize Landfall config system
-            LandfallConfig.Initialize();
-
-            // Sync playlists from LandfallConfig to our manager
-            PlaylistBridge.SyncToCustomMusicManager();
-
-            Debug.Log($"Initialized from LandfallConfig: {HybridTrackPaths.Count} hybrid tracks, {StreamsTrackPaths.Count} streams");
-        }
-        catch (Exception ex)
-        {
-            Debug.LogError($"Error initializing from LandfallConfig: {ex}");
-        }
-    }
 
     // ------------------------------
     // Public API: Loading
@@ -222,7 +200,7 @@ public class CustomMusicManager : MonoBehaviour
             _lastLocalTrackIndex = 0;
 
             // Only create directory if it's the default path
-            string defaultMusicPath = Path.Combine(Application.dataPath, "CustomMusic");
+            string defaultMusicPath = WorkshopHelper.DefaultMusicPath;
             bool isDefaultPath = string.Equals(directoryPath, defaultMusicPath, StringComparison.OrdinalIgnoreCase);
 
             if (!Directory.Exists(directoryPath))
@@ -434,9 +412,7 @@ public class CustomMusicManager : MonoBehaviour
         _streamingInstance = MusicPlayer.Instance.m_AudioSourceCurrent.gameObject.AddComponent<StreamingClip>();
 
         // Set mode immediately for radio-like URLs
-        if (path.ToLowerInvariant().Contains("/stream") ||
-            path.ToLowerInvariant().Contains("radio") ||
-            !Path.HasExtension(path))
+        if (!Path.HasExtension(path))
         {
             CurrentPlaybackMode = MusicPlayerMode.RadioStream;
         }
@@ -490,26 +466,6 @@ public class CustomMusicManager : MonoBehaviour
             => StreamingClip.Instance != null ? StreamingClip.Instance.GetBufferStatus() : "No stream";
     }
 
-    public static void SwitchToPlaylist(PlaylistType playlistType, int trackIndex = 0)
-    {
-        if (MusicPlayer.Instance == null) return;
-
-        // Store previous default state if we're switching FROM default
-        if (CurrentPlaybackPlaylistType == PlaylistType.Default && MusicPlayer.Instance.currentlyPlaying?.playlist != null)
-        {
-            _prevDefaultPlaylist = MusicPlayer.Instance.currentlyPlaying.playlist;
-            _prevDefaultTrackIndex = MusicPlayer.Instance.currentTrackId;
-        }
-
-        // Switch using PlaylistManager
-        PlaylistManager.CurrentPlaylistType = playlistType;
-
-        // Play the track if specified
-        if (trackIndex >= 0)
-        {
-            PlaylistManager.PlayTrack(trackIndex);
-        }
-    }
 
     // ------------------------------
     // Playback control
@@ -785,8 +741,6 @@ public class CustomMusicManager : MonoBehaviour
                     // Create playlist object for Unity integration
                     CreateStreamsPlaylistFromTracks();
 
-                    // NEW: Save to LandfallConfig
-                    PlaylistBridge.SyncFromCustomMusicManager();
                 });
 
                 OnTracksLoaded?.Invoke();
@@ -892,9 +846,6 @@ public class CustomMusicManager : MonoBehaviour
                         Debug.LogWarning($"Clearing {playlistType} playlist is not supported");
                         break;
                 }
-
-                // NEW: Save changes to LandfallConfig
-                PlaylistBridge.SyncFromCustomMusicManager();
             }
             catch (Exception ex)
             {

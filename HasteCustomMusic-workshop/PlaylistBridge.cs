@@ -1,5 +1,4 @@
 ﻿using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public static class PlaylistBridge
@@ -36,7 +35,7 @@ public static class PlaylistBridge
     }
 
     // Sync from CustomMusicManager to LandfallConfig
-    public static void SyncFromCustomMusicManager()
+    public static void SaveHybridPlaylistToConfig()
     {
         try
         {
@@ -46,14 +45,6 @@ public static class PlaylistBridge
             {
                 LandfallConfig.CurrentPlaylists.HybridPlaylist.AddRange(CustomMusicManager.HybridTrackPaths);
             }
-
-            // Sync Streams playlist
-            LandfallConfig.CurrentPlaylists.StreamsPlaylist.Clear();
-            if (CustomMusicManager.StreamsTrackPaths != null)
-            {
-                LandfallConfig.CurrentPlaylists.StreamsPlaylist.AddRange(CustomMusicManager.StreamsTrackPaths);
-            }
-
             LandfallConfig.SavePlaylists();
             if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log($"Playlist sync saved: {LandfallConfig.CurrentPlaylists.HybridPlaylist.Count} hybrid, {LandfallConfig.CurrentPlaylists.StreamsPlaylist.Count} streams");
         }
@@ -64,18 +55,11 @@ public static class PlaylistBridge
     }
     
 
-    // Load playlists with coroutine support
-    public static IEnumerator LoadPlaylistsCoroutine()
-    {
-        LandfallConfig.LoadPlaylists();
-        SyncToCustomMusicManager();
-        yield return null;
-    }
 
     // Save playlists with coroutine support
     public static IEnumerator SavePlaylistsCoroutine()
     {
-        SyncFromCustomMusicManager();
+        SaveHybridPlaylistToConfig();
         yield return null;
     }
 

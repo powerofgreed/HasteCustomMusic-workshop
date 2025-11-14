@@ -20,6 +20,10 @@ public class LandfallSettingsWindow : MonoBehaviour
     //dynamic resolution
     private float _uiScale = 1.0f;
     private Matrix4x4 _originalMatrix;
+    // Cursor state management
+    private bool _wasCursorVisible;
+    private CursorLockMode _previousCursorLockState;
+    private bool _cursorStateForced = false;
     void Start()
     {
     }
@@ -29,7 +33,12 @@ public class LandfallSettingsWindow : MonoBehaviour
         // Toggle settings window with F10 (configurable later)
         if (Input.GetKeyDown(KeyCode.F10))
         {
-            _showSettings = !_showSettings;
+            ToggleVisibility();
+        }
+        // Force cursor state every frame while window is open
+        if (_showSettings && !_cursorStateForced)
+        {
+            ForceCursorState();
         }
 
         // Handle hotkey capture
@@ -47,9 +56,13 @@ public class LandfallSettingsWindow : MonoBehaviour
         if (!_showSettings) return;
 
         if (!StyleInitialized) InitializeStyles();
+        if (!_cursorStateForced)
+        {
+            ForceCursorState();
+        }
         try
         {
-            _windowRect = GUI.Window(9999, _windowRect, DrawSettingsWindow, "HasteCustomMusic Settings");
+            _windowRect = GUI.Window(9999, _windowRect, DrawSettingsWindow, "HasteCustomMusic Settings<color=green>(F10)</color>");
         }
         finally
         {
@@ -61,6 +74,62 @@ public class LandfallSettingsWindow : MonoBehaviour
         if (Event.current.type == EventType.MouseDown && _windowRect.Contains(Event.current.mousePosition))
         {
             Event.current.Use();
+        }
+        if (_showSettings)
+        {
+            Cursor.visible = true;
+            Cursor.lockState = CursorLockMode.None;
+        }
+    }
+    void OnApplicationFocus(bool hasFocus)
+    {
+        if (hasFocus && _showSettings)
+        {
+            // Re-force cursor state when application regains focus
+            ForceCursorState();
+        }
+    }
+    void OnDestroy()
+    {
+        if (_cursorStateForced)
+        {
+            RestoreCursorState();
+        }
+    }
+    private void ForceCursorState()
+    {
+        Cursor.visible = true;
+        Cursor.lockState = CursorLockMode.None;
+        _cursorStateForced = true;
+    }
+
+    private void RestoreCursorState()
+    {
+        Cursor.visible = _wasCursorVisible;
+        Cursor.lockState = _previousCursorLockState;
+        _cursorStateForced = false;
+
+        if(LandfallConfig.CurrentConfig.ShowDebug) Debug.Log($"Restored cursor state - Visible: {_wasCursorVisible}, LockState: {_previousCursorLockState}");
+    }
+    public void ToggleVisibility()
+    {
+        _showSettings = !_showSettings;
+
+        if (_showSettings)
+        {
+            // Save current cursor state
+            _wasCursorVisible = Cursor.visible;
+            _previousCursorLockState = Cursor.lockState;
+
+            // Immediately force cursor state
+            ForceCursorState();
+
+            if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log($"Saved cursor state - Visible: {_wasCursorVisible}, LockState: {_previousCursorLockState}");
+        }
+        else
+        {
+            // Restore cursor state
+            RestoreCursorState();
         }
     }
     private void CalculateUIScale()
@@ -86,7 +155,6 @@ public class LandfallSettingsWindow : MonoBehaviour
         if (GUILayout.Button("Save & Close", _buttonStyle, GUILayout.Height(30)))
         {
             LandfallConfig.SaveConfig();
-            LandfallConfig.SavePlaylists();
             _showSettings = false;
         }
         GUILayout.FlexibleSpace();
@@ -207,7 +275,7 @@ public class LandfallSettingsWindow : MonoBehaviour
         }
         if (GUILayout.Button("Open Folder"))
         {
-            Application.OpenURL($"file://{LandfallConfig.ConfigDirectory}");
+            Application.OpenURL($"file://{LandfallConfig.ConfigPath}");
         }
         GUILayout.EndHorizontal();
 
@@ -302,7 +370,6 @@ public class LandfallSettingsWindow : MonoBehaviour
                         LandfallConfig.CurrentConfig.NextTrackKey = keyCode;
                         _editingNextKey = false;
                     }
-                    LandfallConfig.SaveConfig();
                     break;
                 }
             }
@@ -362,7 +429,7 @@ public class LandfallSettingsWindow : MonoBehaviour
     {
         // Create a new config but preserve the CustomMusic directory path
         var newConfig = new LandfallConfig.ConfigData();
-        newConfig.LocalMusicPath = WorkshopHelper.CustomMusicDirectory; // Force CustomMusic directory
+        newConfig.LocalMusicPath = WorkshopHelper.DefaultMusicPath; // Force CustomMusic directory
 
         LandfallConfig.CurrentConfig = newConfig;
         LandfallConfig.SaveConfig();
@@ -372,7 +439,7 @@ public class LandfallSettingsWindow : MonoBehaviour
 
     void BackupPlaylists()
     {
-        string backupPath = Path.Combine(LandfallConfig.ConfigDirectory, $"playlists_backup_{DateTime.Now:yyyyMMdd_HHmmss}.json");
+        string backupPath = Path.Combine(LandfallConfig.ConfigPath, $"playlists_backup_{DateTime.Now:yyyyMMdd_HHmmss}.json");
         string json = JsonUtility.ToJson(LandfallConfig.CurrentPlaylists, true);
         File.WriteAllText(backupPath, json);
         Debug.Log($"Playlists backed up to: {backupPath}");

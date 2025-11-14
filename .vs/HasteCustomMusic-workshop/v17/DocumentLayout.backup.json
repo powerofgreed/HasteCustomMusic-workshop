@@ -3,20 +3,60 @@
   "WorkspaceRootPath": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\",
   "Documents": [
     {
+      "AbsoluteMoniker": "D:0:0:{D769C4B5-53AB-4B93-962B-16A1E55B9CB8}|HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj|c:\\users\\power\\source\\repos\\hastecustommusic-workshop\\hastecustommusic-workshop\\landfallsettingswindow.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D769C4B5-53AB-4B93-962B-16A1E55B9CB8}|HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj|solutionrelative:hastecustommusic-workshop\\landfallsettingswindow.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D769C4B5-53AB-4B93-962B-16A1E55B9CB8}|HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj|c:\\users\\power\\source\\repos\\hastecustommusic-workshop\\hastecustommusic-workshop\\landfallconfig.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D769C4B5-53AB-4B93-962B-16A1E55B9CB8}|HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj|solutionrelative:hastecustommusic-workshop\\landfallconfig.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D769C4B5-53AB-4B93-962B-16A1E55B9CB8}|HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj|c:\\users\\power\\source\\repos\\hastecustommusic-workshop\\hastecustommusic-workshop\\streamingclip.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D769C4B5-53AB-4B93-962B-16A1E55B9CB8}|HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj|solutionrelative:hastecustommusic-workshop\\streamingclip.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{D769C4B5-53AB-4B93-962B-16A1E55B9CB8}|HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj|c:\\users\\power\\source\\repos\\hastecustommusic-workshop\\hastecustommusic-workshop\\hastecustommusiclandfall.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{D769C4B5-53AB-4B93-962B-16A1E55B9CB8}|HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj|solutionrelative:hastecustommusic-workshop\\hastecustommusiclandfall.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{D769C4B5-53AB-4B93-962B-16A1E55B9CB8}|HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj|c:\\users\\power\\source\\repos\\hastecustommusic-workshop\\hastecustommusic-workshop\\pluginconfig.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D769C4B5-53AB-4B93-962B-16A1E55B9CB8}|HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj|solutionrelative:hastecustommusic-workshop\\pluginconfig.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{D769C4B5-53AB-4B93-962B-16A1E55B9CB8}|HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj|c:\\users\\power\\source\\repos\\hastecustommusic-workshop\\hastecustommusic-workshop\\custommusicmanager.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D769C4B5-53AB-4B93-962B-16A1E55B9CB8}|HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj|solutionrelative:hastecustommusic-workshop\\custommusicmanager.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D769C4B5-53AB-4B93-962B-16A1E55B9CB8}|HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj|c:\\users\\power\\source\\repos\\hastecustommusic-workshop\\hastecustommusic-workshop\\iplaylist.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D769C4B5-53AB-4B93-962B-16A1E55B9CB8}|HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj|solutionrelative:hastecustommusic-workshop\\iplaylist.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D769C4B5-53AB-4B93-962B-16A1E55B9CB8}|HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj|c:\\users\\power\\source\\repos\\hastecustommusic-workshop\\hastecustommusic-workshop\\managedbassloader.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D769C4B5-53AB-4B93-962B-16A1E55B9CB8}|HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj|solutionrelative:hastecustommusic-workshop\\managedbassloader.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D769C4B5-53AB-4B93-962B-16A1E55B9CB8}|HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj|c:\\users\\power\\source\\repos\\hastecustommusic-workshop\\hastecustommusic-workshop\\audioloader.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D769C4B5-53AB-4B93-962B-16A1E55B9CB8}|HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj|solutionrelative:hastecustommusic-workshop\\audioloader.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D769C4B5-53AB-4B93-962B-16A1E55B9CB8}|HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj|c:\\users\\power\\source\\repos\\hastecustommusic-workshop\\hastecustommusic-workshop\\hastecustommusic-workshop.csproj||{04B8AB82-A572-4FEF-95CE-5222444B6B64}|",
+      "RelativeMoniker": "D:0:0:{D769C4B5-53AB-4B93-962B-16A1E55B9CB8}|HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj|solutionrelative:hastecustommusic-workshop\\hastecustommusic-workshop.csproj||{04B8AB82-A572-4FEF-95CE-5222444B6B64}|"
     },
     {
       "AbsoluteMoniker": "D:0:0:{D769C4B5-53AB-4B93-962B-16A1E55B9CB8}|HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj|c:\\users\\power\\source\\repos\\hastecustommusic-workshop\\hastecustommusic-workshop\\hastecustommusic-workshop.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|",
       "RelativeMoniker": "D:0:0:{D769C4B5-53AB-4B93-962B-16A1E55B9CB8}|HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj|solutionrelative:hastecustommusic-workshop\\hastecustommusic-workshop.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{D769C4B5-53AB-4B93-962B-16A1E55B9CB8}|HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj|c:\\users\\power\\source\\repos\\hastecustommusic-workshop\\hastecustommusic-workshop\\landfallsettingswindow.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{D769C4B5-53AB-4B93-962B-16A1E55B9CB8}|HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj|solutionrelative:hastecustommusic-workshop\\landfallsettingswindow.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{D769C4B5-53AB-4B93-962B-16A1E55B9CB8}|HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj|c:\\users\\power\\source\\repos\\hastecustommusic-workshop\\hastecustommusic-workshop\\workshophelper.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D769C4B5-53AB-4B93-962B-16A1E55B9CB8}|HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj|solutionrelative:hastecustommusic-workshop\\workshophelper.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D769C4B5-53AB-4B93-962B-16A1E55B9CB8}|HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj|c:\\users\\power\\source\\repos\\hastecustommusic-workshop\\hastecustommusic-workshop\\hmpanimation.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D769C4B5-53AB-4B93-962B-16A1E55B9CB8}|HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj|solutionrelative:hastecustommusic-workshop\\hmpanimation.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D769C4B5-53AB-4B93-962B-16A1E55B9CB8}|HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj|c:\\users\\power\\source\\repos\\hastecustommusic-workshop\\hastecustommusic-workshop\\playlistbridge.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D769C4B5-53AB-4B93-962B-16A1E55B9CB8}|HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj|solutionrelative:hastecustommusic-workshop\\playlistbridge.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D769C4B5-53AB-4B93-962B-16A1E55B9CB8}|HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj|c:\\users\\power\\source\\repos\\hastecustommusic-workshop\\hastecustommusic-workshop\\musicvolumecontroler.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D769C4B5-53AB-4B93-962B-16A1E55B9CB8}|HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj|solutionrelative:hastecustommusic-workshop\\musicvolumecontroler.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     }
   ],
   "DocumentGroupContainers": [
@@ -26,8 +66,34 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 5,
+          "SelectedChildIndex": 12,
           "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "IPlaylist.cs",
+              "DocumentMoniker": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop\\IPlaylist.cs",
+              "RelativeDocumentMoniker": "HasteCustomMusic-workshop\\IPlaylist.cs",
+              "ToolTip": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop\\IPlaylist.cs",
+              "RelativeToolTip": "HasteCustomMusic-workshop\\IPlaylist.cs",
+              "ViewState": "AgIAAHgBAAAAAAAAAAAYwJ8BAAAQAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-11-13T17:26:40.676Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": "AudioLoader.cs",
+              "DocumentMoniker": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop\\AudioLoader.cs",
+              "RelativeDocumentMoniker": "HasteCustomMusic-workshop\\AudioLoader.cs",
+              "ToolTip": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop\\AudioLoader.cs",
+              "RelativeToolTip": "HasteCustomMusic-workshop\\AudioLoader.cs",
+              "ViewState": "AgIAAKkAAAAAAAAAAAAWwMYAAAANAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-11-13T17:16:30.133Z",
+              "EditorCaption": ""
+            },
             {
               "$type": "Bookmark",
               "Name": "ST:129:0:{1fc202d4-d401-403c-9834-5b218574bb67}"
@@ -50,54 +116,157 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 0,
-              "Title": "HasteCustomMusicLandfall.cs",
-              "DocumentMoniker": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop\\HasteCustomMusicLandfall.cs",
-              "RelativeDocumentMoniker": "HasteCustomMusic-workshop\\HasteCustomMusicLandfall.cs",
-              "ToolTip": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop\\HasteCustomMusicLandfall.cs",
-              "RelativeToolTip": "HasteCustomMusic-workshop\\HasteCustomMusicLandfall.cs",
-              "ViewState": "AgIAAJUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-11-12T21:21:02.533Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 3,
-              "Title": "LandfallSettingsWindow.cs",
-              "DocumentMoniker": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop\\LandfallSettingsWindow.cs",
-              "RelativeDocumentMoniker": "HasteCustomMusic-workshop\\LandfallSettingsWindow.cs",
-              "ToolTip": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop\\LandfallSettingsWindow.cs",
-              "RelativeToolTip": "HasteCustomMusic-workshop\\LandfallSettingsWindow.cs",
-              "ViewState": "AgIAAAEAAAAAAAAAAAAkwBIAAAAUAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-11-12T20:04:46.065Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 1,
-              "Title": "PluginConfig.cs",
-              "DocumentMoniker": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop\\PluginConfig.cs",
-              "RelativeDocumentMoniker": "HasteCustomMusic-workshop\\PluginConfig.cs",
-              "ToolTip": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop\\PluginConfig.cs",
-              "RelativeToolTip": "HasteCustomMusic-workshop\\PluginConfig.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAABIAAAA3AAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-11-12T19:05:57.919Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 8,
               "Title": "HasteCustomMusic-workshop",
               "DocumentMoniker": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj",
               "RelativeDocumentMoniker": "HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj",
               "ToolTip": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj",
               "RelativeToolTip": "HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAB0AAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
-              "WhenOpened": "2025-11-12T19:03:27.857Z",
+              "WhenOpened": "2025-11-13T16:34:18.399Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "CustomMusicManager.cs",
+              "DocumentMoniker": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop\\CustomMusicManager.cs",
+              "RelativeDocumentMoniker": "HasteCustomMusic-workshop\\CustomMusicManager.cs",
+              "ToolTip": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop\\CustomMusicManager.cs",
+              "RelativeToolTip": "HasteCustomMusic-workshop\\CustomMusicManager.cs",
+              "ViewState": "AgIAAD8BAAAAAAAAAADwv1gBAABGAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-11-13T10:53:38.754Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "StreamingClip.cs",
+              "DocumentMoniker": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop\\StreamingClip.cs",
+              "RelativeDocumentMoniker": "HasteCustomMusic-workshop\\StreamingClip.cs",
+              "ToolTip": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop\\StreamingClip.cs",
+              "RelativeToolTip": "HasteCustomMusic-workshop\\StreamingClip.cs",
+              "ViewState": "AgIAAAYCAAAAAAAAAAAswBoCAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-11-13T10:29:41.547Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "HasteCustomMusicLandfall.cs",
+              "DocumentMoniker": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop\\HasteCustomMusicLandfall.cs",
+              "RelativeDocumentMoniker": "HasteCustomMusic-workshop\\HasteCustomMusicLandfall.cs",
+              "ToolTip": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop\\HasteCustomMusicLandfall.cs",
+              "RelativeToolTip": "HasteCustomMusic-workshop\\HasteCustomMusicLandfall.cs",
+              "ViewState": "AgIAAM4AAAAAAAAAAAAkwOEAAAAkAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-11-13T09:47:09.994Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "ManagedBassLoader.cs",
+              "DocumentMoniker": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop\\ManagedBassLoader.cs",
+              "RelativeDocumentMoniker": "HasteCustomMusic-workshop\\ManagedBassLoader.cs",
+              "ToolTip": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop\\ManagedBassLoader.cs",
+              "RelativeToolTip": "HasteCustomMusic-workshop\\ManagedBassLoader.cs",
+              "ViewState": "AgIAAIQBAAAAAAAAAAAswJkBAAAiAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-11-13T09:47:05.936Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "LandfallSettingsWindow.cs",
+              "DocumentMoniker": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop\\LandfallSettingsWindow.cs",
+              "RelativeDocumentMoniker": "HasteCustomMusic-workshop\\LandfallSettingsWindow.cs",
+              "ToolTip": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop\\LandfallSettingsWindow.cs*",
+              "RelativeToolTip": "HasteCustomMusic-workshop\\LandfallSettingsWindow.cs*",
+              "ViewState": "AgIAAGwAAAAAAAAAAAAAAH4AAAA4AAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-11-13T09:47:02.135Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "LandfallConfig.cs",
+              "DocumentMoniker": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop\\LandfallConfig.cs",
+              "RelativeDocumentMoniker": "HasteCustomMusic-workshop\\LandfallConfig.cs",
+              "ToolTip": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop\\LandfallConfig.cs",
+              "RelativeToolTip": "HasteCustomMusic-workshop\\LandfallConfig.cs",
+              "ViewState": "AgIAAAoAAAAAAAAAAAAkwB4AAAAdAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-11-13T10:16:58.596Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 9,
+              "Title": "HasteCustomMusic-workshop",
+              "DocumentMoniker": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj",
+              "RelativeDocumentMoniker": "HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj",
+              "ToolTip": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj",
+              "RelativeToolTip": "HasteCustomMusic-workshop\\HasteCustomMusic-workshop.csproj",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
+              "WhenOpened": "2025-11-13T15:05:50.904Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 10,
+              "Title": "WorkshopHelper.cs",
+              "DocumentMoniker": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop\\WorkshopHelper.cs",
+              "RelativeDocumentMoniker": "HasteCustomMusic-workshop\\WorkshopHelper.cs",
+              "ToolTip": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop\\WorkshopHelper.cs",
+              "RelativeToolTip": "HasteCustomMusic-workshop\\WorkshopHelper.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA0AAAAqAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-11-13T10:13:22.498Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 13,
+              "Title": "MusicVolumeControler.cs",
+              "DocumentMoniker": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop\\MusicVolumeControler.cs",
+              "RelativeDocumentMoniker": "HasteCustomMusic-workshop\\MusicVolumeControler.cs",
+              "ToolTip": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop\\MusicVolumeControler.cs",
+              "RelativeToolTip": "HasteCustomMusic-workshop\\MusicVolumeControler.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-11-13T09:47:08.671Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 12,
+              "Title": "PlaylistBridge.cs",
+              "DocumentMoniker": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop\\PlaylistBridge.cs",
+              "RelativeDocumentMoniker": "HasteCustomMusic-workshop\\PlaylistBridge.cs",
+              "ToolTip": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop\\PlaylistBridge.cs",
+              "RelativeToolTip": "HasteCustomMusic-workshop\\PlaylistBridge.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAYAAAAXAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-11-13T10:52:29.948Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 11,
+              "Title": "HMPAnimation.cs",
+              "DocumentMoniker": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop\\HMPAnimation.cs",
+              "RelativeDocumentMoniker": "HasteCustomMusic-workshop\\HMPAnimation.cs",
+              "ToolTip": "C:\\Users\\PoWeR\\source\\repos\\HasteCustomMusic-workshop\\HasteCustomMusic-workshop\\HMPAnimation.cs",
+              "RelativeToolTip": "HasteCustomMusic-workshop\\HMPAnimation.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-11-13T13:08:41.688Z",
               "EditorCaption": ""
             }
           ]

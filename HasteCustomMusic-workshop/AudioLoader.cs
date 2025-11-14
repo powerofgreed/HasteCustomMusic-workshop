@@ -187,7 +187,7 @@ public static class AudioLoader
         {
             try
             {
-                _managedBassAvailable = ManagedBassLoader.IsNativeLibraryAvailable();
+                _managedBassAvailable = ManagedBassLoader.IsNativeLibraryAvailable;
                 Debug.Log(_managedBassAvailable == true
                     ? "ManagedBass: ✓ Fully available"
                     : "ManagedBass: ✗ Native bass.dll not available");

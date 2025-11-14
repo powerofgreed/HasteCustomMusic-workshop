@@ -4,8 +4,17 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
+    <Nullable>disable</Nullable>
     <LangVersion>latest</LangVersion>
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DebugType>none</DebugType>
   </PropertyGroup>
 
   <ItemGroup>
@@ -18,6 +27,7 @@
     <PackageReference Include="ManagedBass.Hls" Version="4.0.2" />
     <PackageReference Include="ManagedBass.Mix" Version="4.0.2" />	  <PackageReference Include="ManagedBass" Version="4.0.2" />
 	  <PackageReference Include="ManagedBass.Hls" Version="4.0.2" />
+	  <PackageReference Include="ManagedBass.Opus" Version="4.0.2" />
 	  
   </ItemGroup>
 
