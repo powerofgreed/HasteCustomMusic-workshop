@@ -30,7 +30,7 @@ public class CustomMusicManager : MonoBehaviour
 {
     public enum PlaybackMethod { UnityAudio, Streaming }
 
-    public static PlaybackMethod CurrentPlaybackMethod { get; private set; } = PlaybackMethod.UnityAudio;
+    public static PlaybackMethod CurrentPlaybackMethod { get; set; } = PlaybackMethod.UnityAudio;
 
     // ------------------------------
     // Public collections and state
@@ -228,7 +228,7 @@ public class CustomMusicManager : MonoBehaviour
             var supported = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             {
                 // Core BASS formats
-                ".wav", ".mp3", ".ogg", ".aif", ".aiff", ".wma",
+                ".mp3", ".ogg", ".wav", ".mp2", ".mp1", ".aiff", ".m2a", ".mpa", ".m1a", ".mpg", ".mpeg", ".aif", ".mp3pro", ".bwf", ".mus", ".mod", ".mo3", ".s3m", ".xm", ".it", ".mtm", ".umx", ".mdz", ".s3z", ".itz", ".xmz",
 
                 // Add‑on formats (require DLLs, but safe to list)
                 ".flac",   // bassflac.dll
@@ -241,13 +241,34 @@ public class CustomMusicManager : MonoBehaviour
                 ".tta"     // bass_tta.dll
             };
 
-            var files = Directory.GetFiles(directoryPath, "*.*")
+            // Determine search option based on config
+            SearchOption searchOption = LandfallConfig.CurrentConfig?.ScanSubfolders == true
+                ? SearchOption.AllDirectories
+                : SearchOption.TopDirectoryOnly;
+
+
+            var files = Directory.GetFiles(directoryPath, "*.*", searchOption)
                             .Where(f => supported.Contains(Path.GetExtension(f).ToLowerInvariant()))
                             .ToList();
 
+            if (LandfallConfig.CurrentConfig?.ScanSubfolders == true)
+            {
+                // Sort by directory then filename for logical ordering
+                files = files.OrderBy(f => Path.GetDirectoryName(f))
+                            .ThenBy(f => f)
+                            .ToList();
+
+                Debug.Log($"Found {files.Count} audio files in {directoryPath} and subfolders");
+            }
+            else
+            {
+                Debug.Log($"Found {files.Count} audio files in {directoryPath}");
+            }
+
             if (files.Count == 0)
             {
-                Debug.LogWarning("No supported audio files found.");
+                Debug.LogWarning("No supported audio files found." +
+                    (LandfallConfig.CurrentConfig?.ScanSubfolders == true ? " (including subfolders)" : ""));
                 return false;
             }
 
@@ -405,7 +426,6 @@ public class CustomMusicManager : MonoBehaviour
         if (_streamingInstance != null)
         {
             try { _streamingInstance.StopStream(); } catch { }
-            try { UnityEngine.Object.Destroy(_streamingInstance); } catch { }
             _streamingInstance = null;
         }
 
@@ -434,10 +454,9 @@ public class CustomMusicManager : MonoBehaviour
         if (_streamingInstance != null)
         {
             try { _streamingInstance.StopStream(); } catch { }
-            try { UnityEngine.Object.Destroy(_streamingInstance); } catch { }
             _streamingInstance = null;
             CurrentPlaybackMode = MusicPlayerMode.None;
-            Debug.Log("Streaming stopped");
+            if(LandfallConfig.CurrentConfig.ShowDebug) Debug.Log("Streaming stopped");
         }
     }
 

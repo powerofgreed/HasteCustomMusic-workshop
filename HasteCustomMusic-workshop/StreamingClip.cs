@@ -208,10 +208,19 @@ public class StreamingClip : MonoBehaviour
         // Filter obvious encoder noise
         string lc = candidate.ToLowerInvariant();
         var noisyTokens = new[] { "encoder=", "lavc", "libopus", "ffmpeg", "libvorbis" };
-        foreach (var tok in noisyTokens) if (lc.Contains(tok)) return;
+        foreach (var tok in noisyTokens)
+            if (lc.Contains(tok)) return;
 
         // ICY key=value guard
         if (candidate.Contains("=") && candidate.Split('=').Length == 2 && candidate.Length < 64)
+            return;
+
+        // Don't update if it's the same title and we're not a stream (local files don't change)
+        if (!sourceIsStream && string.Equals(PublicTrackTitle, candidate, StringComparison.Ordinal))
+            return;
+
+        // For non-stream sources, only update if we don't have a title yet
+        if (!sourceIsStream && !string.IsNullOrEmpty(PublicTrackTitle))
             return;
 
         bool isChange = !string.Equals(PublicTrackTitle, candidate, StringComparison.Ordinal);
@@ -654,7 +663,10 @@ public class StreamingClip : MonoBehaviour
             DebugDumpHeadTags(_stream);
         }
 
-        UpdateMetadata(force: true);
+        if (read.IsRadio)
+        {
+            UpdateMetadata(force: true);
+        }
     }
 
     private int GetClipFramesForStreamUsingRead(ReadResult read, int stream, int deviceRate)
@@ -988,79 +1000,86 @@ public class StreamingClip : MonoBehaviour
                         {
                             newTitle = icy;
                             titleFromStream = true;
+
+                            // For ICY streams, emit immediately and return
+                            if (!string.IsNullOrEmpty(newTitle) && !IsNoiseTitle(newTitle))
+                            {
+                                SetClipTitle(newTitle, sourceIsStream: true);
+                            }
+                            return; // ICY takes precedence, no need to check other sources
                         }
                     }
                 }
             }
             catch { }
 
-            // 2. Try ID3v2 tags using ManagedBass ID3v2Tag class
-            if (string.IsNullOrEmpty(newTitle))
+            // For non-ICY streams (local files, etc.), only update if we don't have a title yet
+            // or if forced and we might have better metadata now
+            if (string.IsNullOrEmpty(PublicTrackTitle) || force)
             {
-                try
+                // 2. Try ID3v2 tags using ManagedBass ID3v2Tag class
+                if (string.IsNullOrEmpty(newTitle))
                 {
-                    var id3v2 = new ID3v2Tag(_stream);
-                    if (id3v2.TextFrames != null && id3v2.TextFrames.Count > 0)
+                    try
                     {
-                        // Try to get title and artist from ID3v2 frames
-                        string artist = null;
-
-                        // Common ID3v2 frame names for title and artist
-                        if (id3v2.TextFrames.TryGetValue("TIT2", out string title) ||  // Title
-                            id3v2.TextFrames.TryGetValue("TT2", out title))     // Legacy title frame
+                        var id3v2 = new ID3v2Tag(_stream);
+                        if (id3v2.TextFrames != null && id3v2.TextFrames.Count > 0)
                         {
-                            id3v2.TextFrames.TryGetValue("TPE1", out artist);  // Lead performer
-                            id3v2.TextFrames.TryGetValue("TP1", out artist);   // Legacy artist frame
+                            string artist = null;
 
-                            if (!string.IsNullOrWhiteSpace(title))
+                            if (id3v2.TextFrames.TryGetValue("TIT2", out string title) ||  // Title
+                                id3v2.TextFrames.TryGetValue("TT2", out title))     // Legacy title frame
                             {
-                                newTitle = string.IsNullOrWhiteSpace(artist)
-                                    ? title.Trim()
-                                    : $"{artist.Trim()} - {title.Trim()}";
-                                titleFromStream = true;
+                                id3v2.TextFrames.TryGetValue("TPE1", out artist);  // Lead performer
+                                id3v2.TextFrames.TryGetValue("TP1", out artist);   // Legacy artist frame
 
-                                if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log($"[StreamingClip] ID3v2 tags found: Title='{title}', Artist='{artist}'");
+                                if (!string.IsNullOrWhiteSpace(title))
+                                {
+                                    newTitle = string.IsNullOrWhiteSpace(artist)
+                                        ? title.Trim()
+                                        : $"{artist.Trim()} - {title.Trim()}";
+                                    titleFromStream = true;
+                                }
                             }
                         }
                     }
-                }
-                catch (Exception ex)
-                {
-                    // This is normal if no ID3v2 tags are present
-                    if (force) // Only log in forced updates to reduce spam
-                        if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log($"[StreamingClip] No ID3v2 tags or parsing failed: {ex.Message}");
-                }
-            }
-
-            // 3. Fall back to TagReader for other tag formats
-            if (string.IsNullOrEmpty(newTitle))
-            {
-                try
-                {
-                    var tr = TagReader.Read(_stream);
-                    if (tr != null)
+                    catch (Exception ex)
                     {
-                        if (!string.IsNullOrWhiteSpace(tr.Title))
-                        {
-                            newTitle = string.IsNullOrWhiteSpace(tr.Artist)
-                                ? tr.Title
-                                : $"{tr.Artist} - {tr.Title}";
-                            titleFromStream = true;
-                        }
-                        else if (tr.Other != null && tr.Other.TryGetValue("TITLE", out var otitle))
-                        {
-                            newTitle = otitle;
-                            titleFromStream = true;
-                        }
+                        // Only log in forced updates to reduce spam
+                        if (force && LandfallConfig.CurrentConfig.ShowDebug)
+                            Debug.Log($"[StreamingClip] No ID3v2 tags or parsing failed: {ex.Message}");
                     }
                 }
-                catch { }
-            }
 
-            
-            if (!string.IsNullOrEmpty(newTitle) && !IsNoiseTitle(newTitle))
-            {
-                SetClipTitle(newTitle, sourceIsStream: titleFromStream);
+                // 3. Fall back to TagReader for other tag formats
+                if (string.IsNullOrEmpty(newTitle))
+                {
+                    try
+                    {
+                        var tr = TagReader.Read(_stream);
+                        if (tr != null)
+                        {
+                            if (!string.IsNullOrWhiteSpace(tr.Title))
+                            {
+                                newTitle = string.IsNullOrWhiteSpace(tr.Artist)
+                                    ? tr.Title
+                                    : $"{tr.Artist} - {tr.Title}";
+                                titleFromStream = true;
+                            }
+                            else if (tr.Other != null && tr.Other.TryGetValue("TITLE", out var otitle))
+                            {
+                                newTitle = otitle;
+                                titleFromStream = true;
+                            }
+                        }
+                    }
+                    catch { }
+                }
+
+                if (!string.IsNullOrEmpty(newTitle) && !IsNoiseTitle(newTitle))
+                {
+                    SetClipTitle(newTitle, sourceIsStream: titleFromStream);
+                }
             }
         }
         catch (Exception ex)

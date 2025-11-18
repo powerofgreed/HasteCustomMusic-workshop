@@ -295,7 +295,11 @@ public class LandfallSettingsWindow : MonoBehaviour
             LandfallConfig.CurrentConfig.PreloadEntirePlaylist,
             "Preload Entire Playlist (More RAM, Less CPU)");
 
-        
+        LandfallConfig.CurrentConfig.ScanSubfolders = GUILayout.Toggle(
+            LandfallConfig.CurrentConfig.ScanSubfolders,
+            "Scan subfolders for audio");
+
+
         GUILayout.Space(10);
         LandfallConfig.CurrentConfig.PlaylistWindowVisible = GUILayout.Toggle(
     LandfallConfig.CurrentConfig.PlaylistWindowVisible,

@@ -26,6 +26,7 @@ public static class LandfallConfig
         public string LocalMusicPath = "";
         public string LoaderPriority = "BassFirst";
         public bool PreloadEntirePlaylist = false;
+        public bool ScanSubfolders = false;
 
         // Debug
         public bool ShowDebug = false;

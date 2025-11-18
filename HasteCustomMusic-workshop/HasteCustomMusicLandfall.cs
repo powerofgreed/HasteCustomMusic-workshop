@@ -138,7 +138,7 @@ public class MusicDisplayBehaviour : MonoBehaviour
 
                 _selectedTrackIndex = -1;
                 _lastClickedTrack = -1;
-                if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log($"Active tab: {_activeTab}, Viewing: {_viewingPlaylistType}, Playing: {CustomMusicManager.CurrentPlaybackPlaylistType}");
+                if(LandfallConfig.CurrentConfig.ShowDebug) Debug.Log($"Active tab: {_activeTab}, Viewing: {_viewingPlaylistType}, Playing: {CustomMusicManager.CurrentPlaybackPlaylistType}");
             }
         }
     }
@@ -1065,6 +1065,21 @@ public class MusicDisplayBehaviour : MonoBehaviour
                     GUI.enabled = true;
 
                     GUILayout.FlexibleSpace();
+                    // Playlist preload and subfolder flags
+                    LandfallConfig.CurrentConfig.PreloadEntirePlaylist = GUILayout.Toggle(
+                        LandfallConfig.CurrentConfig.PreloadEntirePlaylist,
+                        "Preload",
+                        _toggleStyle,
+                        GUILayout.Height(20)
+                    );
+                    GUILayout.Space(5);
+                    LandfallConfig.CurrentConfig.ScanSubfolders = GUILayout.Toggle(
+                        LandfallConfig.CurrentConfig.ScanSubfolders,
+                        "Scan Subfolders",
+                        _toggleStyle,
+                        GUILayout.Height(20)
+                    );
+                    GUILayout.Space(5);
 
                     // Load button
                     if (GUILayout.Button("Load", GUILayout.ExpandWidth(false), GUILayout.MinWidth(1), GUILayout.Height(20)))
@@ -1238,9 +1253,9 @@ public class MusicDisplayBehaviour : MonoBehaviour
                 StreamingClip.TreatInputAsPlaylist = GUILayout.Toggle(StreamingClip.TreatInputAsPlaylist, "Playlist(.m3u/...)", GUILayout.Height(20), GUILayout.Width(120));
 
                 GUI.enabled = !connected && !string.IsNullOrEmpty(_customStreamPath);
-                if (GUILayout.Button("Connect", GUILayout.ExpandWidth(false), GUILayout.Height(20), GUILayout.Width(65)))
+                if (GUILayout.Button("Start", GUILayout.ExpandWidth(false), GUILayout.Height(20), GUILayout.Width(45)))
                 {
-                    ConnectToStream();
+                    StartStreamFromTab();
                 }
                 GUI.enabled = true;
             }
@@ -1256,7 +1271,7 @@ public class MusicDisplayBehaviour : MonoBehaviour
                 {
                     LoadStreamsPlaylistAndSwitchView();
                 }
-                GUILayout.Space(45);
+                GUILayout.Space(25);
 
                 connected = CustomMusicManager._streamingInstance != null;
                 GUI.enabled = connected;
@@ -1966,6 +1981,7 @@ public class MusicDisplayBehaviour : MonoBehaviour
         try
         {
             // Switch to Hybrid playlist type
+            CustomMusicManager.CurrentPlaybackMethod = PlaybackMethod.Streaming;
             CustomMusicManager.CurrentPlaybackPlaylistType = PlaylistType.Hybrid;
             PlaylistManager.CurrentPlaylistType = PlaylistType.Hybrid;
 
@@ -2002,7 +2018,7 @@ public class MusicDisplayBehaviour : MonoBehaviour
             return playlist.CurrentTrackIndex;
         }
     }
-    private void ConnectToStream()
+    private void StartStreamFromTab()
     {
         if (string.IsNullOrEmpty(_customStreamPath))
         {
@@ -2022,6 +2038,7 @@ public class MusicDisplayBehaviour : MonoBehaviour
         {
             // Direct stream connection - no clearing needed
             CustomMusicManager.StartStreaming(_customStreamPath);
+            CustomMusicManager.CurrentPlaybackMethod = PlaybackMethod.Streaming;
             CustomMusicManager.CurrentPlaybackPlaylistType = PlaylistType.Streams;
         }
     }
