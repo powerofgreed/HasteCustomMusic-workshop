@@ -17,12 +17,6 @@
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 using HarmonyLib;
 using Landfall.Haste.Music;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using UnityEngine;
 using static StreamingClip;
 
@@ -458,7 +452,7 @@ public class CustomMusicManager : MonoBehaviour
             try { _streamingInstance.StopStream(); } catch { }
             _streamingInstance = null;
             CurrentPlaybackMode = MusicPlayerMode.None;
-            if(LandfallConfig.CurrentConfig.ShowDebug) Debug.Log("Streaming stopped");
+            if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log("Streaming stopped");
         }
     }
 
@@ -1222,6 +1216,11 @@ public class CustomMusicManager : MonoBehaviour
                 newPlaylist != GetCurrentActivePlaylist() &&
                 !IsUserInitiatedChange)
             {
+                if (MusicPlayer.Instance.m_AudioSourceCurrent?.clip == null)
+                {
+                    PlaylistManager.PlayCurrentTrack();
+                    Debug.Log($"Empty clip. Playback restarted.");
+                }
                 Debug.Log($"Blocked InitRandomAndPlay to {newPlaylist?.name} (Locked to {CurrentPlaybackPlaylistType})");
                 return false; // Block the original method from executing
             }
@@ -1270,6 +1269,11 @@ public class CustomMusicManager : MonoBehaviour
                 newPlaylist != GetCurrentActivePlaylist() &&
                 !IsUserInitiatedChange)
             {
+                if (MusicPlayer.Instance.m_AudioSourceCurrent?.clip == null)
+                {
+                    PlaylistManager.PlayCurrentTrack();
+                    Debug.Log($"Empty clip. Playback restarted.");
+                }
                 Debug.Log($"Blocked ChangePlaylist to {newPlaylist?.name} (Locked to {CurrentPlaybackPlaylistType})");
                 return false; // Block the original method from executing
             }
@@ -1308,6 +1312,7 @@ public class CustomMusicManager : MonoBehaviour
             return true; // Allow original method to execute normally
         }
     }
+
 
     private static MusicPlaylist GetCurrentActivePlaylist()
     {
