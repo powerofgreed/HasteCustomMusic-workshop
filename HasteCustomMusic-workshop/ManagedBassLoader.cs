@@ -7,9 +7,10 @@ using UnityEngine;
 public static class ManagedBassLoader
 {
     private static bool _initialized = false;
-    private static bool _nativeLibChecked = false;
     private static bool _nativeLibAvailable = false;
+    private static string _nativeLibsDir = null;
     private static string _lastError = string.Empty;
+    private static readonly object _initLock = new();
 
     [DllImport("kernel32", SetLastError = true)]
     private static extern bool SetDllDirectory(string lpPathName);
@@ -19,70 +20,271 @@ public static class ManagedBassLoader
 
     public static bool Initialize()
     {
-        if (_initialized) return true;
-
-        try
+        lock (_initLock)
         {
-            Debug.Log("[ManagedBassLoader] Initializing BASS for Steam Workshop...");
-
-            // Get the correct plugins path for Steam Workshop
-            string pluginsPath = GetSteamWorkshopPluginsPath();
-
-            if (!string.IsNullOrEmpty(pluginsPath) && Directory.Exists(pluginsPath))
+            if (_initialized)
             {
-                // Set DLL directory - this is crucial for Steam Workshop
-                if (SetDllDirectory(pluginsPath))
+                Debug.Log("[ManagedBassLoader] Already initialized");
+                return true;
+            }
+
+            try
+            {
+                Debug.Log("[ManagedBassLoader] Initializing BASS for Steam Workshop...");
+
+                // Get the mod's persistent data directory
+                string modDataDir = WorkshopHelper.PersistentDataPath;
+                if (string.IsNullOrEmpty(modDataDir) || !Directory.Exists(modDataDir))
                 {
-                    Debug.Log($"[ManagedBassLoader] Successfully set DLL directory to: {pluginsPath}");
+                    Debug.LogError("[ManagedBassLoader] Mod data directory not found");
+                    return false;
                 }
-                else
+
+                // Create native libraries directory
+                _nativeLibsDir = Path.Combine(modDataDir, "NativeLibraries");
+                Directory.CreateDirectory(_nativeLibsDir);
+                Debug.Log($"[ManagedBassLoader] Native libraries directory: {_nativeLibsDir}");
+
+                // Get source plugins path
+                string pluginsPath = GetSteamWorkshopPluginsPath();
+                if (string.IsNullOrEmpty(pluginsPath) || !Directory.Exists(pluginsPath))
+                {
+                    Debug.LogError("[ManagedBassLoader] Plugins directory not found");
+                    return false;
+                }
+
+                // Copy .native files to .dll in our directory and load them
+                if (!CopyAndLoadNativeLibraries(pluginsPath, _nativeLibsDir))
+                {
+                    Debug.LogError("[ManagedBassLoader] Failed to copy and load native libraries");
+                    return false;
+                }
+
+                // Set DLL directory to our native libs directory
+                if (!SetDllDirectory(_nativeLibsDir))
                 {
                     int error = Marshal.GetLastWin32Error();
-                    Debug.LogError($"[ManagedBassLoader] Failed to set DLL directory. Error code: {error}");
-                    return false;
+                    Debug.LogWarning($"[ManagedBassLoader] Failed to set DLL directory. Error: {GetWin32ErrorMessage(error)}");
                 }
 
-                // Also try to manually load critical DLLs as fallback
-                PreloadCriticalDlls(pluginsPath);
-            }
-            else
-            {
-                Debug.LogError($"[ManagedBassLoader] Plugins directory not found: {pluginsPath}");
-                return false;
-            }
+                // Wait for DLL loading to settle
+                System.Threading.Thread.Sleep(200);
 
-            // Wait a moment for DLL directory to take effect
-            System.Threading.Thread.Sleep(100);
-
-            // Check if BASS is available
-            if (!CheckNativeLibrary())
-            {
-                Debug.LogError("[ManagedBassLoader] Native BASS library not available after setting DLL directory.");
-                return false;
-            }
-
-            // Initialize BASS
-            if (!Bass.Init(-1, 44100, DeviceInitFlags.Default, IntPtr.Zero))
-            {
-                Errors error = Bass.LastError;
-                if (error != Errors.Already)
+                // Verify BASS is working
+                if (!VerifyBassInitialization())
                 {
-                    Debug.LogError($"[ManagedBassLoader] BASS initialization failed. Error: {error}");
+                    Debug.LogError("[ManagedBassLoader] BASS verification failed");
                     return false;
+                }
+
+                _initialized = true;
+                Debug.Log("[ManagedBassLoader] BASS initialized successfully!");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[ManagedBassLoader] Initialization error: {ex}");
+                return false;
+            }
+        }
+    }
+    private static bool CopyAndLoadNativeLibraries(string sourceDir, string targetDir)
+    {
+        try
+        {
+            // Get .native files from source
+            string[] nativeFiles = Directory.GetFiles(sourceDir, "*.native");
+            if (nativeFiles.Length == 0)
+            {
+                Debug.LogWarning("[ManagedBassLoader] No .native files found in source directory");
+                return false;
+            }
+
+            Debug.Log($"[ManagedBassLoader] Found {nativeFiles.Length} .native files");
+
+            int copiedCount = 0;
+            int loadedCount = 0;
+            var loadedLibraries = new System.Collections.Generic.List<string>();
+
+            foreach (string nativeFile in nativeFiles)
+            {
+                string fileName = Path.GetFileName(nativeFile);
+                string dllName = Path.GetFileNameWithoutExtension(nativeFile) + ".dll";
+                string targetDllPath = Path.Combine(targetDir, dllName);
+
+                try
+                {
+                    // Check if we need to copy (file doesn't exist or is different)
+                    bool needsCopy = !File.Exists(targetDllPath);
+                    if (!needsCopy)
+                    {
+                        // Check file size and last write time
+                        var sourceInfo = new FileInfo(nativeFile);
+                        var targetInfo = new FileInfo(targetDllPath);
+
+                        needsCopy = sourceInfo.Length != targetInfo.Length ||
+                                   sourceInfo.LastWriteTime > targetInfo.LastWriteTime;
+                    }
+
+                    if (needsCopy)
+                    {
+                        File.Copy(nativeFile, targetDllPath, true);
+                        copiedCount++;
+                        Debug.Log($"[ManagedBassLoader] Copied: {fileName} -> {dllName}");
+                    }
+                    else
+                    {
+                        Debug.Log($"[ManagedBassLoader] Skipped copy (up-to-date): {fileName}");
+                    }
+
+                    // Try to load the DLL
+                    if (LoadLibraryAndVerify(targetDllPath, dllName))
+                    {
+                        loadedCount++;
+                        loadedLibraries.Add(dllName);
+                        Debug.Log($"[ManagedBassLoader] ✓ Loaded: {dllName}");
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[ManagedBassLoader] ✗ Failed to load: {dllName}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"[ManagedBassLoader] Error processing {fileName}: {ex.Message}");
                 }
             }
 
-            _initialized = true;
-            Debug.Log("[ManagedBassLoader] BASS initialized successfully!");
+            Debug.Log($"[ManagedBassLoader] Copy summary: {copiedCount} copied, {loadedCount}/{nativeFiles.Length} loaded successfully");
 
-            // Test loading different formats
-            TestFormatSupport();
+            // Log detailed loading results
+            if (loadedLibraries.Count > 0)
+            {
+                Debug.Log("[ManagedBassLoader] Successfully loaded libraries:");
+                foreach (string lib in loadedLibraries)
+                {
+                    Debug.Log($"  - {lib}");
+                }
+            }
 
-            return true;
+            return loadedCount > 0;
         }
         catch (Exception ex)
         {
-            Debug.LogError($"[ManagedBassLoader] Initialization error: {ex}");
+            Debug.LogError($"[ManagedBassLoader] Copy and load failed: {ex}");
+            return false;
+        }
+    }
+    private static bool LoadLibraryAndVerify(string dllPath, string dllName)
+    {
+        try
+        {
+            // Load the library
+            IntPtr handle = LoadLibrary(dllPath);
+            if (handle == IntPtr.Zero)
+            {
+                int error = Marshal.GetLastWin32Error();
+                string errorMsg = GetWin32ErrorMessage(error);
+                Debug.LogWarning($"[ManagedBassLoader] LoadLibrary failed for {dllName}: {errorMsg}");
+                return false;
+            }
+
+            // Additional verification for critical libraries
+            return VerifyLibraryLoad(dllName, handle);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[ManagedBassLoader] Exception loading {dllName}: {ex.Message}");
+            return false;
+        }
+    }
+    private static bool VerifyLibraryLoad(string dllName, IntPtr handle)
+    {
+        // Special verification for bass.dll
+        if (dllName.Equals("bass.dll", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                // Try to get BASS version to verify it's loaded correctly
+                var version = Bass.Version;
+                Debug.Log($"[ManagedBassLoader] BASS library verified: {version}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[ManagedBassLoader] BASS verification failed: {ex.Message}");
+                return false;
+            }
+        }
+
+        // For other libraries, we can't easily verify, so assume success if handle is valid
+        return handle != IntPtr.Zero;
+    }
+    private static bool VerifyBassInitialization()
+    {
+        try
+        {
+            // Double-check BASS version
+            var version = Bass.Version;
+            Debug.Log($"[ManagedBassLoader] BASS Version: {version}");
+
+            int freq = AudioSettings.outputSampleRate;
+            if (freq <= 0) freq = 44100; // Fallback
+
+            if (!Bass.Init(-1, freq, DeviceInitFlags.Default, IntPtr.Zero))
+            {
+                Errors error = Bass.LastError;
+                if (error == Errors.Already)
+                {
+                    Debug.Log("[ManagedBassLoader] BASS already initialized");
+                    return true;
+                }
+
+                // Try fallback initialization
+                Debug.LogWarning($"[ManagedBassLoader] Primary BASS init failed: {error}, trying fallback...");
+
+                if (!Bass.Init(0, 44100, DeviceInitFlags.Default, IntPtr.Zero))
+                {
+                    Debug.LogError($"[ManagedBassLoader] Fallback BASS init failed: {Bass.LastError}");
+                    return false;
+                }
+            }
+
+            // Test critical plugins
+            return TestCriticalPlugins();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[ManagedBassLoader] BASS verification exception: {ex}");
+            return false;
+        }
+    }
+    private static bool TestCriticalPlugins()
+    {
+        try
+        {
+            string[] criticalPlugins = { "bassflac.dll", "bassopus.dll", "bass_aac.dll" };
+            int loadedCount = 0;
+
+            foreach (string plugin in criticalPlugins)
+            {
+                if (Bass.PluginLoad(plugin)!=0)
+                {
+                    loadedCount++;
+                    Debug.Log($"[ManagedBassLoader] ✓ {plugin} loaded");
+                }
+                else
+                {
+                    Debug.LogWarning($"[ManagedBassLoader] ⚠ {plugin} not available: {Bass.LastError}");
+                }
+            }
+
+            Debug.Log($"[ManagedBassLoader] Loaded {loadedCount}/{criticalPlugins.Length} critical plugins");
+            return loadedCount > 0; // At least one plugin should work
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"[ManagedBassLoader] Plugin test failed: {ex}");
             return false;
         }
     }
@@ -102,17 +304,17 @@ public static class ManagedBassLoader
                 }
             }
 
-            // Method 2: Look for Plugins/x86_64 relative to current assembly
+            // Method 2: Look relative to current assembly
             string assemblyDir = Path.GetDirectoryName(typeof(ManagedBassLoader).Assembly.Location);
             if (!string.IsNullOrEmpty(assemblyDir))
             {
-                // Try different possible locations
                 string[] possiblePaths = {
                     Path.Combine(assemblyDir, "Plugins", "x86_64"),
                     Path.Combine(assemblyDir, "..", "Plugins", "x86_64"),
                     Path.Combine(assemblyDir, "..", "..", "Plugins", "x86_64"),
                     Path.Combine(assemblyDir, "x86_64"),
-                    Path.Combine(assemblyDir, "Plugins")
+                    Path.Combine(assemblyDir, "Plugins"),
+                    assemblyDir
                 };
 
                 foreach (string path in possiblePaths)
@@ -120,22 +322,13 @@ public static class ManagedBassLoader
                     string fullPath = Path.GetFullPath(path);
                     if (Directory.Exists(fullPath))
                     {
-                        Debug.Log($"[ManagedBassLoader] Found assembly-relative path: {fullPath}");
+                        Debug.Log($"[ManagedBassLoader] Found path: {fullPath}");
                         return fullPath;
                     }
                 }
             }
 
-            // Method 3: Current directory
-            string currentDir = Environment.CurrentDirectory;
-            string currentDirPath = Path.Combine(currentDir, "Plugins", "x86_64");
-            if (Directory.Exists(currentDirPath))
-            {
-                Debug.Log($"[ManagedBassLoader] Found current directory path: {currentDirPath}");
-                return currentDirPath;
-            }
-
-            Debug.LogError("[ManagedBassLoader] Could not find plugins directory in any location");
+            Debug.LogError("[ManagedBassLoader] Could not find plugins directory");
             return null;
         }
         catch (Exception ex)
@@ -145,161 +338,21 @@ public static class ManagedBassLoader
         }
     }
 
-    private static void PreloadCriticalDlls(string pluginsPath)
+    private static string GetWin32ErrorMessage(int errorCode)
     {
         try
         {
-            string[] criticalDlls = {
-                "bass.dll",
-                "bassflac.dll",
-                "bassopus.dll",
-                "basshls.dll",
-                "bassmix.dll",
-                "bass_aac.dll",
-                "bassalac.dll",
-                "bass_spx.dll",
-                "bass_tta.dll"
-            };
-
-            foreach (string dllName in criticalDlls)
-            {
-                string dllPath = Path.Combine(pluginsPath, dllName);
-                if (File.Exists(dllPath))
-                {
-                    IntPtr handle = LoadLibrary(dllPath);
-                    if (handle != IntPtr.Zero)
-                    {
-                        Debug.Log($"[ManagedBassLoader] Preloaded: {dllName}");
-                    }
-                    else
-                    {
-                        int error = Marshal.GetLastWin32Error();
-                        Debug.LogWarning($"[ManagedBassLoader] Failed to preload {dllName}. Error code: {error}");
-                    }
-                }
-                else
-                {
-                    Debug.LogWarning($"[ManagedBassLoader] DLL not found: {dllPath}");
-                }
-            }
+            var win32Exception = new System.ComponentModel.Win32Exception(errorCode);
+            return win32Exception.Message;
         }
-        catch (Exception ex)
+        catch
         {
-            Debug.LogWarning($"[ManagedBassLoader] Preload warning: {ex.Message}");
+            return $"Windows error 0x{errorCode:X}";
         }
     }
 
-    private static bool CheckNativeLibrary()
-    {
-        _nativeLibChecked = true;
-        try
-        {
-            // Try to get BASS version - this will fail if native DLLs aren't loaded
-            var version = Bass.Version;
-            Debug.Log($"[ManagedBassLoader] BASS version: {version}");
 
-            // Test if specific codecs are available
-            TestCodecAvailability();
 
-            _nativeLibAvailable = true;
-            return true;
-        }
-        catch (DllNotFoundException dllEx)
-        {
-            Debug.LogError($"[ManagedBassLoader] bass.dll not found: {dllEx.Message}");
-            _nativeLibAvailable = false;
-            return false;
-        }
-        catch (BadImageFormatException badImageEx)
-        {
-            Debug.LogError($"[ManagedBassLoader] Architecture mismatch: {badImageEx.Message}");
-            _nativeLibAvailable = false;
-            return false;
-        }
-        catch (Exception ex)
-        {
-            Debug.LogError($"[ManagedBassLoader] Error checking native library: {ex}");
-            _nativeLibAvailable = false;
-            return false;
-        }
-    }
-
-    private static void TestCodecAvailability()
-    {
-        try
-        {
-            Debug.Log("[ManagedBassLoader] Testing codec availability...");
-
-            // Test FLAC
-            try
-            {
-                Bass.PluginLoad("bassflac.dll");
-                Debug.Log("[ManagedBassLoader] FLAC codec: AVAILABLE");
-            }
-            catch
-            {
-                Debug.LogWarning("[ManagedBassLoader] FLAC codec: UNAVAILABLE");
-            }
-
-            // Test Opus
-            try
-            {
-                Bass.PluginLoad("bassopus.dll");
-                Debug.Log("[ManagedBassLoader] Opus codec: AVAILABLE");
-            }
-            catch
-            {
-                Debug.LogWarning("[ManagedBassLoader] Opus codec: UNAVAILABLE");
-            }
-
-            // Test HLS
-            try
-            {
-                Bass.PluginLoad("basshls.dll");
-                Debug.Log("[ManagedBassLoader] HLS codec: AVAILABLE");
-            }
-            catch
-            {
-                Debug.LogWarning("[ManagedBassLoader] HLS codec: UNAVAILABLE");
-            }
-
-            // Test AAC
-            try
-            {
-                Bass.PluginLoad("bass_aac.dll");
-                Debug.Log("[ManagedBassLoader] AAC codec: AVAILABLE");
-            }
-            catch
-            {
-                Debug.LogWarning("[ManagedBassLoader] AAC codec: UNAVAILABLE");
-            }
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"[ManagedBassLoader] Codec test error: {ex.Message}");
-        }
-    }
-
-    private static void TestFormatSupport()
-    {
-        try
-        {
-            Debug.Log("[ManagedBassLoader] Testing format support...");
-
-            // Test basic format support flags
-            var supported = Bass.SupportedFormats;
-
-            Debug.Log($"[ManagedBassLoader] BASS Supported Formats: {supported}");
-       
-
-            // Note: Opus support might not be in the flags enum, so we test differently
-            Debug.Log("[ManagedBassLoader] - Opus: (testing via plugin load)");
-        }
-        catch (Exception ex)
-        {
-            Debug.LogWarning($"[ManagedBassLoader] Format support test error: {ex.Message}");
-        }
-    }
 
     public static AudioClip LoadWithManagedBass(string filePath)
     {
@@ -511,6 +564,11 @@ public static class ManagedBassLoader
                 Debug.LogWarning($"[ManagedBassLoader] Cleanup error: {ex.Message}");
             }
         }
+    }
+    [RuntimeInitializeOnLoadMethod]
+    private static void RegisterAppExitHandler()
+    {
+        Application.quitting += Cleanup;
     }
 
     public static string GetLastError()

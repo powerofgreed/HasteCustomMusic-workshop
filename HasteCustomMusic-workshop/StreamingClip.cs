@@ -9,12 +9,7 @@
 using Landfall.Haste.Music;
 using ManagedBass;
 using ManagedBass.Mix;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Runtime.InteropServices;
-using System.Threading.Tasks;
 using UnityEngine;
 
 public class StreamingClip : MonoBehaviour
@@ -35,7 +30,7 @@ public class StreamingClip : MonoBehaviour
         UrlFinite,
         RadioStream
     }
-    public enum PathType { Unknown, LocalFile, HttpHttps, HlsM3U8, Ftp, PlaylistFile }  
+    public enum PathType { Unknown, LocalFile, HttpHttps, HlsM3U8, Ftp, PlaylistFile }
     public static MusicPlayerMode CurrentPlaybackMode { get; set; } = MusicPlayerMode.None;
 
     // --- Public state & events ---
@@ -86,6 +81,7 @@ public class StreamingClip : MonoBehaviour
     private static readonly object _initLock = new object();
     private static bool _bassInitialized = false;
     private static bool _pluginsLoaded = false;
+    private readonly object _audioLock = new();
 
     // public toggle used elsewhere
     public static bool TreatInputAsPlaylist { get; set; } = false;
@@ -241,7 +237,10 @@ public class StreamingClip : MonoBehaviour
     {
         _currentPath = null;
         try { _source?.Stop(); } catch { }
-        if (_mixer != 0) { try { Bass.StreamFree(_mixer); } catch { } _mixer = 0; }
+        lock (_audioLock)
+        {
+            if (_mixer != 0) { try { Bass.StreamFree(_mixer); } catch { } _mixer = 0; }
+        }
         if (_stream != 0) { try { Bass.StreamFree(_stream); } catch { } _stream = 0; }
         if (_clip != null) { try { Destroy(_clip); } catch { } _clip = null; }
         PublicTrackTitle = null;
@@ -359,7 +358,7 @@ public class StreamingClip : MonoBehaviour
         try
         {
             // EARLY RADIO DETECTION - Check basic indicators immediately
-            bool isHttp = path.StartsWith("http", StringComparison.OrdinalIgnoreCase)|| path.StartsWith("ftp", StringComparison.OrdinalIgnoreCase);
+            bool isHttp = path.StartsWith("http", StringComparison.OrdinalIgnoreCase) || path.StartsWith("ftp", StringComparison.OrdinalIgnoreCase);
 
 
             if (isHttp)
@@ -511,7 +510,7 @@ public class StreamingClip : MonoBehaviour
         catch { }
 
         // Enhanced playback mode decision with better radio detection
-        bool isUrl = path.StartsWith("http", StringComparison.OrdinalIgnoreCase)|| path.StartsWith("ftp", StringComparison.OrdinalIgnoreCase);
+        bool isUrl = path.StartsWith("http", StringComparison.OrdinalIgnoreCase) || path.StartsWith("ftp", StringComparison.OrdinalIgnoreCase);
 
         if (read.IsRadio)
         {
@@ -533,7 +532,7 @@ public class StreamingClip : MonoBehaviour
                 {
                     // This might actually be radio, re-classify
                     CurrentPlaybackMode = MusicPlayerMode.RadioStream;
-                    read.IsRadio = true; 
+                    read.IsRadio = true;
                     if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log($"[StreamingClip] Re-classified as RadioStream - URL with no detectable length");
                 }
             }
@@ -720,27 +719,30 @@ public class StreamingClip : MonoBehaviour
 
     private void OnPCMRead(float[] data)
     {
-        if (_mixer == 0)
+        lock (_audioLock)
         {
-            Array.Clear(data, 0, data.Length);
-            return;
-        }
+            if (_mixer == 0)
+            {
+                Array.Clear(data, 0, data.Length);
+                return;
+            }
 
-        int bytesNeeded = data.Length * sizeof(float);
-        int bytesRead;
-        try { bytesRead = Bass.ChannelGetData(_mixer, data, bytesNeeded); } catch { bytesRead = 0; }
+            int bytesNeeded = data.Length * sizeof(float);
+            int bytesRead;
+            try { bytesRead = Bass.ChannelGetData(_mixer, data, bytesNeeded); } catch { bytesRead = 0; }
 
-        if (bytesRead <= 0)
-        {
-            Array.Clear(data, 0, data.Length);
-            if (LandfallConfig.CurrentConfig.ShowDebug) if (Time.frameCount % 300 == 0) Debug.Log($"[StreamingClip] Audio underrun: needed={bytesNeeded} got={bytesRead}");
-            return;
-        }
+            if (bytesRead <= 0)
+            {
+                Array.Clear(data, 0, data.Length);
+                if (LandfallConfig.CurrentConfig.ShowDebug) if (Time.frameCount % 300 == 0) Debug.Log($"[StreamingClip] Audio underrun: needed={bytesNeeded} got={bytesRead}");
+                return;
+            }
 
-        int floatsRead = Math.Max(0, bytesRead / sizeof(float));
-        if (floatsRead < data.Length)
-        {
-            for (int i = floatsRead; i < data.Length; i++) data[i] = 0f;
+            int floatsRead = Math.Max(0, bytesRead / sizeof(float));
+            if (floatsRead < data.Length)
+            {
+                for (int i = floatsRead; i < data.Length; i++) data[i] = 0f;
+            }
         }
     }
 
@@ -1140,7 +1142,7 @@ public class StreamingClip : MonoBehaviour
                     return hs;
                 }
 
-                if (path.StartsWith("http", StringComparison.OrdinalIgnoreCase)|| path.StartsWith("ftp", StringComparison.OrdinalIgnoreCase))
+                if (path.StartsWith("http", StringComparison.OrdinalIgnoreCase) || path.StartsWith("ftp", StringComparison.OrdinalIgnoreCase))
                 {
                     int s = Bass.CreateStream(path, 0, commonFlags | BassFlags.Prescan | BassFlags.AsyncFile, null, IntPtr.Zero);
                     return s;
@@ -1205,7 +1207,7 @@ public class StreamingClip : MonoBehaviour
     /// </summary>
     public void DebugDumpHeadTags(int streamHandle)
     {
-        
+
         try
         {
             if (streamHandle == 0)

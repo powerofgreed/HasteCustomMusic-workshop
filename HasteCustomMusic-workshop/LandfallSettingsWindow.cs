@@ -35,11 +35,11 @@ public class LandfallSettingsWindow : MonoBehaviour
         {
             ToggleVisibility();
         }
-        // Force cursor state every frame while window is open
-        if (_showSettings && !_cursorStateForced)
-        {
-            ForceCursorState();
-        }
+        //// Force cursor state every frame while window is open
+        //if (_showSettings && !_cursorStateForced)
+        //{
+        //    ForceCursorState();
+        //}
 
         // Handle hotkey capture
         CheckHotkeyCapture();

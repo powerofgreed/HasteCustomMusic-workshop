@@ -121,7 +121,9 @@ public class CustomMusicManager : MonoBehaviour
 
     private static readonly Task _loadingTask;
     private static CancellationTokenSource _cts;
-    private static readonly object _loadLock = new object();
+    private static readonly object _loadLock = new();
+    private const int PLAYLIST_TIMEOUT_SECONDS = 15;
+    private const int PLAYLIST_MAX_BYTES = 1024 * 1024; // 1 MB
 
     // Default playlist tracking for seamless switching
     public static MusicPlaylist _prevDefaultPlaylist;
@@ -731,15 +733,57 @@ public class CustomMusicManager : MonoBehaviour
 
     public static async Task LoadStreamsPlaylist(string playlistPath)
     {
+        IsLoading = true;
+        OnLoadingStateChanged?.Invoke(true);
+
+        Debug.Log($"Attempting to load streams playlist: {playlistPath}");
+
         try
         {
-            IsLoading = true;
-            OnLoadingStateChanged?.Invoke(true);
+            List<string> tracks = new List<string>();
 
-            Debug.Log($"Attempting to load streams playlist: {playlistPath}");
+            if (playlistPath.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            {
+                using (var www = UnityEngine.Networking.UnityWebRequest.Get(playlistPath))
+                {
+                    // 1. TIMEOUT PROTECTION
+                    www.timeout = PLAYLIST_TIMEOUT_SECONDS;
 
-            // Decode the playlist file first
-            var tracks = PlaylistDecoder.DecodePlaylist(playlistPath);
+                    // Start the request
+                    var operation = www.SendWebRequest();
+
+                    // 2. SIZE PROTECTION LOOP
+                    while (!operation.isDone)
+                    {
+                        // Check downloaded bytes every frame
+                        if (www.downloadedBytes > PLAYLIST_MAX_BYTES)
+                        {
+                            www.Abort(); // Cut connection immediately
+                            Debug.LogError($"[CustomMusic] Playlist too large (>1MB). Aborted download of {playlistPath}");
+                            IsLoading = false;
+                            return;
+                        }
+
+                        await Task.Yield(); // Wait for next frame
+                    }
+
+                    if (www.result == UnityEngine.Networking.UnityWebRequest.Result.Success)
+                    {
+                        string webContent = www.downloadHandler.text;
+                        tracks = PlaylistDecoder.DecodePlaylist(playlistPath, webContent);
+                    }
+                    else
+                    {
+                        Debug.LogError($"[CustomMusic] Download failed: {www.error}");
+                    }
+                }
+            }
+            else
+            {
+                // Local file handling
+                tracks = PlaylistDecoder.DecodePlaylist(playlistPath);
+            }
+
 
             // Only clear and replace if we successfully found tracks
             if (tracks.Count > 0)
