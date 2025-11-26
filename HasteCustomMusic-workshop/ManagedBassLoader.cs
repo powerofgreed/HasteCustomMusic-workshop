@@ -208,6 +208,7 @@ public static class ManagedBassLoader
                 // Try to get BASS version to verify it's loaded correctly
                 var version = Bass.Version;
                 Debug.Log($"[ManagedBassLoader] BASS library verified: {version}");
+                _nativeLibAvailable = true;
                 return true;
             }
             catch (Exception ex)
@@ -251,7 +252,7 @@ public static class ManagedBassLoader
             }
 
             // Test critical plugins
-            return TestCriticalPlugins();
+            return PreloadPlugins();
         }
         catch (Exception ex)
         {
@@ -259,14 +260,14 @@ public static class ManagedBassLoader
             return false;
         }
     }
-    private static bool TestCriticalPlugins()
+    private static bool PreloadPlugins()
     {
         try
         {
-            string[] criticalPlugins = { "bassflac.dll", "bassopus.dll", "bass_aac.dll" };
+            string[] Plugins = { "bassflac.dll", "bassopus.dll", "bass_aac.dll", "bass_ac3.dll", "bass_mpc.dll", "bass_spx.dll", "bass_tta.dll", "bassalac.dll", "basshls.dll", "bassmidi.dll", "bassmix.dll" };
             int loadedCount = 0;
 
-            foreach (string plugin in criticalPlugins)
+            foreach (string plugin in Plugins)
             {
                 if (Bass.PluginLoad(plugin)!=0)
                 {
@@ -279,7 +280,7 @@ public static class ManagedBassLoader
                 }
             }
 
-            Debug.Log($"[ManagedBassLoader] Loaded {loadedCount}/{criticalPlugins.Length} critical plugins");
+            Debug.Log($"[ManagedBassLoader] Loaded {loadedCount}/{Plugins.Length}  plugins");
             return loadedCount > 0; // At least one plugin should work
         }
         catch (Exception ex)
