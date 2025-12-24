@@ -1,6 +1,6 @@
 ﻿using System;
-using System.IO;
 using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
 
 public static class LandfallConfig
@@ -52,12 +52,25 @@ public static class LandfallConfig
     private static float _lastSaveTime = 0f;
     private static float _lastPlaylistSaveTime = 0f;
 
-    private static readonly string[] DefaultStreams = new string[]
+    public static readonly string[] DefaultStreams = new string[]
     {
+        "http://hyperadio.ru:8000/live",
         "https://c22.radioboss.fm/stream/144",
+        "https://kathy.torontocast.com:3060",
+        "https://kpop.onlyhit.us/play",
         "http://funkyunclefm.net:8000/fufm",
         "https://icecast.radiofrance.fr/fip-hifi.aac",
-        "http://stream.animeradio.de/animeradio.mp3"
+        "http://stream.animeradio.de/animeradio.mp3",
+        "http://5.9.2.139:8000/any-anime.ru",
+        "http://listen.nolife-radio.com",
+        "http://cast.animu.com.br:9079",
+        "https://stream-175.zeno.fm/hutw7c7q9c0uv",
+        "https://stream20.usastreams.com/8208/stream",
+        "https://live.turadio.stream:7004/stream",
+        "https://stream.radioparadise.com/ti-global-320",
+        "https://maestro.emfcdn.com/stream_for/k-love/tunein/aac",
+        "https://wkcr.streamguys1.com/live?t=1765460140958"
+
     };
     public static void Initialize()
     {

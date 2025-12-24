@@ -52,7 +52,7 @@ public static class HasteCustomMusicLandfall
 
         // Initialize Harmony
         _harmony = new Harmony("com.PoG.HasteCustomMusic");
-        _harmony.PatchAll(typeof(CustomMusicManager)); // Your existing patches
+        _harmony.PatchAll(typeof(CustomMusicManager)); 
 
         // Create main behaviour
         var gameObject = new GameObject("HasteCustomMusicController");
@@ -2211,8 +2211,8 @@ public class MusicDisplayBehaviour : MonoBehaviour
             _showGUI = !_showGUI;
         }
 
-        // D-pad Right: Next Track (Xbox controller D-pad right)  
-        if (Gamepad.current.dpad.right.wasPressedThisFrame)
+        // D-pad Down: Next Track (Xbox controller D-pad down)  
+        if (Gamepad.current.dpad.down.wasPressedThisFrame)
         {
             CustomMusicManager.PlayNextTrack();
         }

@@ -22,7 +22,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Krafs.Publicizer" Version="2.1.0" />
+    <PackageReference Include="Krafs.Publicizer" Version="2.1.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
 	      <PackageReference Include="ManagedBass" Version="4.0.2" />
     <PackageReference Include="ManagedBass.Hls" Version="4.0.2" />
     <PackageReference Include="ManagedBass.Mix" Version="4.0.2" />	  <PackageReference Include="ManagedBass" Version="4.0.2" />
@@ -33,7 +36,7 @@
 
   <ItemGroup>
     <Reference Include="0Harmony">
-      <HintPath>G:\Program Files (x86)\SteamLibrary\steamapps\common\Haste\BepInEx\core\0Harmony.dll</HintPath>
+      <HintPath>bin\Debug\netstandard2.1\0Harmony.dll</HintPath>
     </Reference>
   </ItemGroup>
 </Project>

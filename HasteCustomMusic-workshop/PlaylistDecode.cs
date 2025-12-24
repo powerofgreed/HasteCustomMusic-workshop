@@ -215,41 +215,167 @@ public static class PlaylistDecoder
 
         try
         {
+            // Check if it's an in-game track first
+            if (trackPath.StartsWith("in-game:", StringComparison.OrdinalIgnoreCase))
+            {
+                string pathWithoutPrefix = trackPath[8..];
+                string[] parts = pathWithoutPrefix.Split('/');
+                if (parts.Length == 2)
+                {
+                    string playlistName = parts[0];
+                    int trackId = int.Parse(parts[1]);
+                    return $"In-game №{trackId} from {playlistName}";
+                }
+                return $"In-game track: {pathWithoutPrefix}";
+            }
+
             // Try to parse as URI first
             if (Uri.TryCreate(trackPath, UriKind.Absolute, out Uri uri))
             {
-                // For HTTP URLs, use the last path segment or hostname
-                if (!string.IsNullOrEmpty(uri.LocalPath) && uri.LocalPath != "/")
+                // For radio streams/URLs
+                if (uri.Scheme.StartsWith("http", StringComparison.OrdinalIgnoreCase) ||
+                    uri.Scheme.StartsWith("ftp", StringComparison.OrdinalIgnoreCase) ||
+                    uri.Scheme.StartsWith("rtmp", StringComparison.OrdinalIgnoreCase) ||
+                    uri.Scheme.StartsWith("rtsp", StringComparison.OrdinalIgnoreCase))
                 {
-                    string fileName = Path.GetFileName(uri.LocalPath);
-                    if (!string.IsNullOrEmpty(fileName))
+                    // Build a display name from the host and path
+                    string displayName = "";
+
+                    // Add host (without www. prefix for cleaner display)
+                    string host = uri.Host;
+                    if (host.StartsWith("www.", StringComparison.OrdinalIgnoreCase))
+                        host = host[4..];
+
+                    displayName = host;
+
+                    // Add port if not default
+                    if (!uri.IsDefaultPort)
+                        displayName += $":{uri.Port}";
+
+                    // Add first non-empty path segment if it exists and isn't just a number
+                    if (!string.IsNullOrEmpty(uri.AbsolutePath) && uri.AbsolutePath != "/")
                     {
-                        // URL decode the file name for better readability
-                        try
+                        var pathSegments = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                        if (pathSegments.Length > 0)
                         {
-                            string decodedName = System.Net.WebUtility.UrlDecode(fileName);
-                            // Remove extension for cleaner display
-                            return Path.GetFileNameWithoutExtension(decodedName) ?? decodedName;
-                        }
-                        catch
-                        {
-                            // Fallback to non-decoded name without extension
-                            return Path.GetFileNameWithoutExtension(fileName) ?? fileName;
+                            string firstSegment = pathSegments[0];
+
+                            // Skip numeric-only segments (like "144" in your example)
+                            if (!int.TryParse(firstSegment, out _))
+                            {
+                                // Clean up the segment
+                                string cleanSegment = firstSegment;
+
+                                // Remove common streaming path names for cleaner display
+                                string[] commonStreamNames = { "stream", "listen", "live", "radio", "audio" };
+                                foreach (var commonName in commonStreamNames)
+                                {
+                                    if (cleanSegment.Equals(commonName, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        cleanSegment = "";
+                                        break;
+                                    }
+                                }
+
+                                if (!string.IsNullOrEmpty(cleanSegment))
+                                    displayName += $"/{cleanSegment}";
+                            }
+                            else if (pathSegments.Length > 1)
+                            {
+                                // If first segment is numeric but there's a second, use that
+                                string secondSegment = pathSegments[1];
+                                if (!int.TryParse(secondSegment, out _))
+                                {
+                                    string cleanSegment = secondSegment;
+                                    string[] commonStreamNames = { "stream", "listen", "live", "radio", "audio" };
+                                    foreach (var commonName in commonStreamNames)
+                                    {
+                                        if (cleanSegment.Equals(commonName, StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            cleanSegment = "";
+                                            break;
+                                        }
+                                    }
+
+                                    if (!string.IsNullOrEmpty(cleanSegment))
+                                        displayName += $"/{cleanSegment}";
+                                }
+                            }
                         }
                     }
+
+                    // If we still have a very short name, try to get more info
+                    if (displayName.Length < 10 && !string.IsNullOrEmpty(uri.AbsolutePath))
+                    {
+                        // Use the last non-numeric segment
+                        var pathSegments = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                        for (int i = pathSegments.Length - 1; i >= 0; i--)
+                        {
+                            if (!int.TryParse(pathSegments[i], out _) &&
+                                !string.IsNullOrEmpty(pathSegments[i]) &&
+                                pathSegments[i].Length > 2)
+                            {
+                                displayName += $"/{pathSegments[i]}";
+                                break;
+                            }
+                        }
+                    }
+
+                    // Final fallback - if still too short, use the full host
+                    if (displayName.Length < 6)
+                        displayName = uri.Host;
+
+                    return displayName.Trim('/');
                 }
-                return uri.Host ?? trackPath;
+                else
+                {
+                    // For non-web URIs (like file://)
+                    if (!string.IsNullOrEmpty(uri.LocalPath) && uri.LocalPath != "/")
+                    {
+                        string fileName = Path.GetFileName(uri.LocalPath);
+                        if (!string.IsNullOrEmpty(fileName))
+                        {
+                            try
+                            {
+                                string decodedName = System.Net.WebUtility.UrlDecode(fileName);
+                                return Path.GetFileNameWithoutExtension(decodedName) ?? decodedName;
+                            }
+                            catch
+                            {
+                                return Path.GetFileNameWithoutExtension(fileName) ?? fileName;
+                            }
+                        }
+                    }
+                    return uri.Host ?? trackPath;
+                }
             }
             else
             {
-                // Local file path - just remove extension
+                // Local file path (not a URI)
                 return Path.GetFileNameWithoutExtension(trackPath) ?? trackPath;
             }
         }
         catch
         {
             // Fallback: use the original path without extension
-            return Path.GetFileNameWithoutExtension(trackPath) ?? trackPath;
+            string fallback = Path.GetFileNameWithoutExtension(trackPath) ?? trackPath;
+
+            // Remove protocol prefixes for cleaner display
+            string[] prefixes = { "https://", "http://", "ftp://", "rtmp://", "rtsp://" };
+            foreach (var prefix in prefixes)
+            {
+                if (fallback.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    fallback = fallback[prefix.Length..];
+                    break;
+                }
+            }
+
+            // Truncate if too long
+            if (fallback.Length > 50)
+                fallback = fallback[..47] + "...";
+
+            return fallback;
         }
     }
 }

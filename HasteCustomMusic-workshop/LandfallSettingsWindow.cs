@@ -225,7 +225,7 @@ public class LandfallSettingsWindow : MonoBehaviour
 
         LandfallConfig.CurrentConfig.GamepadHotkeysEnabled = GUILayout.Toggle(
             LandfallConfig.CurrentConfig.GamepadHotkeysEnabled,
-            "Enable Gamepad Hotkeys (D-pad Up: Toggle UI, D-pad Right: Next Track)");
+            "Enable Gamepad Hotkeys (D-pad Up: Toggle UI, D-pad Down: Next Track)");
 
         GUILayout.EndVertical();
         GUILayout.Space(10);
@@ -275,7 +275,7 @@ public class LandfallSettingsWindow : MonoBehaviour
         }
         if (GUILayout.Button("Open Folder"))
         {
-            Application.OpenURL($"file://{LandfallConfig.ConfigPath}");
+            Application.OpenURL($"file://{LandfallConfig.CurrentConfig.LocalMusicPath}");
         }
         GUILayout.EndHorizontal();
 
@@ -340,9 +340,9 @@ public class LandfallSettingsWindow : MonoBehaviour
         {
             BackupPlaylists();
         }
-        if (GUILayout.Button("Restore Playlists"))
+        if (GUILayout.Button("Reset Streams Playlist"))
         {
-            RestorePlaylists();
+            RestoreStreamsPlaylist();
         }
         GUILayout.EndHorizontal();
 
@@ -443,15 +443,35 @@ public class LandfallSettingsWindow : MonoBehaviour
 
     void BackupPlaylists()
     {
-        string backupPath = Path.Combine(LandfallConfig.ConfigPath, $"playlists_backup_{DateTime.Now:yyyyMMdd_HHmmss}.json");
+        string backupPath = Path.Combine(Path.GetDirectoryName(LandfallConfig.ConfigPath), $"playlists_backup_{DateTime.Now:yyyyMMdd_HHmmss}.json");
         string json = JsonUtility.ToJson(LandfallConfig.CurrentPlaylists, true);
         File.WriteAllText(backupPath, json);
         Debug.Log($"Playlists backed up to: {backupPath}");
     }
 
-    void RestorePlaylists()
+    void RestoreStreamsPlaylist()
     {
-        // This would need file browser implementation
-        Debug.Log("Playlist restore feature - would need file browser implementation");
+        LandfallConfig.CurrentPlaylists.StreamsPlaylist.Clear();
+        LandfallConfig.CurrentPlaylists.StreamsPlaylist.AddRange(LandfallConfig.DefaultStreams);
+        // Read the existing playlists file
+        string json = File.ReadAllText(LandfallConfig.PlaylistsPath);
+
+        // Parse the existing playlists
+        var existingPlaylists = JsonUtility.FromJson<LandfallConfig.PlaylistData>(json);
+
+        // Keep the existing Hybrid playlist as-is
+        // Only replace the Streams playlist with defaults
+        existingPlaylists.StreamsPlaylist = new List<string>(LandfallConfig.DefaultStreams);
+
+        // Save back to file
+        string updatedJson = JsonUtility.ToJson(existingPlaylists, true);
+        File.WriteAllText(LandfallConfig.PlaylistsPath, updatedJson);
+
+        // Update in-memory config to match
+        LandfallConfig.CurrentPlaylists.StreamsPlaylist = new List<string>(LandfallConfig.DefaultStreams);
+
+        Debug.Log("Streams Playlist restored to default and saved!");
+
+        PlaylistBridge.SyncStreamsPlaylistToCustomMusicManager();
     }
 }
