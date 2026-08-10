@@ -109,7 +109,14 @@ public class MusicDisplayBehaviour : MonoBehaviour
     private string _activeTimerType = ""; // "save" or "load"
     private float _timerStartTime = 0f;
     private const float TIMER_DURATION = 3f;
-    // Animation state
+
+    // Drag & Drop reorder
+    private int _draggedDisplayIndex = -1;
+    private int _dropDisplayIndex = -1;
+    private bool _isDragging = false;
+    private bool _potentialDrag = false;
+    private Vector2 _dragStartMousePos;
+    private float _dragStartTime;
 
 
     public enum AudioSourceTab { Local, Hybrid, Streams }
@@ -1399,19 +1406,14 @@ public class MusicDisplayBehaviour : MonoBehaviour
         }
 
         var scrollPos = GetScroll(_viewingPlaylistType);
+        float rowHeight = 20f;
 
-        // Determine display order - use shuffled order if available, otherwise natural order
+        // Determine display order (natural or shuffled)
         List<int> displayOrder;
-        if (playlistToDisplay.ShuffledOrder.Count > 0 && playlistToDisplay.ShuffledOrder.Count == playlistToDisplay.TrackCount)
-        {
-            displayOrder = playlistToDisplay.ShuffledOrder;
-        }
-        else
-        {
-            displayOrder = Enumerable.Range(0, playlistToDisplay.TrackCount).ToList();
-        }
+        bool isShuffled = (playlistToDisplay.ShuffledOrder.Count == playlistToDisplay.TrackCount && playlistToDisplay.ShuffledOrder.Count > 0);
+        displayOrder = isShuffled ? playlistToDisplay.ShuffledOrder : Enumerable.Range(0, playlistToDisplay.TrackCount).ToList();
 
-        float contentHeight = displayOrder.Count * 20f;
+        float contentHeight = displayOrder.Count * rowHeight;
 
         scrollPos = GUI.BeginScrollView(
             new Rect(x, y, width, height),
@@ -1421,119 +1423,143 @@ public class MusicDisplayBehaviour : MonoBehaviour
             true
         );
 
+        Event ev = Event.current;
+
+        // --- Drag event handling ---
+        if (_isDragging)
+        {
+            if (ev.type == EventType.MouseDrag)
+            {
+                // Compute insertion index based on mouse Y (adjusted for scroll)
+                float mouseY = ev.mousePosition.y - y + scrollPos.y;
+                int rowIndex = Mathf.Clamp((int)(mouseY / rowHeight), 0, displayOrder.Count - 1);
+                float fraction = (mouseY % rowHeight) / rowHeight;
+                int insertIndex = rowIndex;
+                if (fraction > 0.5f && rowIndex < displayOrder.Count - 1)
+                    insertIndex = rowIndex + 1;
+                else if (fraction > 0.5f && rowIndex == displayOrder.Count - 1)
+                    insertIndex = displayOrder.Count; // after last
+                if (mouseY < 0) insertIndex = 0;
+                insertIndex = Mathf.Clamp(insertIndex, 0, displayOrder.Count);
+
+                if (insertIndex != _dropDisplayIndex)
+                {
+                    _dropDisplayIndex = insertIndex;
+                    GUI.changed = true;
+                }
+                ev.Use();
+            }
+            else if (ev.type == EventType.MouseUp && ev.button == 0)
+            {
+                // Perform drop if position changed
+                if (_draggedDisplayIndex != _dropDisplayIndex && _dropDisplayIndex >= 0 && _dropDisplayIndex <= displayOrder.Count)
+                {
+                    // Convert insertion index to final display index after removal
+                    int fromIndex = _draggedDisplayIndex;
+                    int toIndex = (_dropDisplayIndex > fromIndex) ? _dropDisplayIndex - 1 : _dropDisplayIndex;
+                    ReorderPlaylist(_viewingPlaylistType, fromIndex, toIndex);
+                }
+                // Reset drag state
+                _draggedDisplayIndex = -1;
+                _dropDisplayIndex = -1;
+                _isDragging = false;
+                ev.Use();
+                GUI.changed = true;
+            }
+        }
+
+        // --- Draw each track ---
         for (int displayIndex = 0; displayIndex < displayOrder.Count; displayIndex++)
         {
             int actualTrackIndex = displayOrder[displayIndex];
-
-            int playingIndexInViewed = GetPlayingIndexForViewed();
-            int selectedIndexInViewed = _selectedTrackIndex;
-            bool isPlayingHere = (displayIndex == playingIndexInViewed);
-            bool isSelectedHere = (displayIndex == selectedIndexInViewed);
-            // Use animated name if this track is being animated
             string trackName = HMPAnimation.GetAnimatedTrackName(_viewingPlaylistType, actualTrackIndex,
                 playlistToDisplay.GetTrackDisplayName(actualTrackIndex));
 
-            // Row color status
-            if (isPlayingHere) GUI.contentColor = Color.yellow;
-            else if (isSelectedHere) GUI.contentColor = Color.cyan;
-            else GUI.contentColor = Color.white;
+            bool isPlayingHere = (displayIndex == GetPlayingIndexForViewed());
+            bool isSelectedHere = (displayIndex == _selectedTrackIndex);
 
-            Rect trackRect = new Rect(0, displayIndex * 20, width - 20, 20);
+            Rect trackRect = new Rect(0, displayIndex * rowHeight, width - 20, rowHeight);
+
+            // Highlight selected track with cyan background
+            if (isSelectedHere)
+            {
+                GUI.DrawTexture(trackRect, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0, new Color(0f, 1f, 1f, 0.3f), 0, 0);
+            }
+
+            // Set text color: yellow for currently playing, white otherwise
+            GUI.contentColor = isPlayingHere ? Color.yellow : Color.white;
+
+            // Draw track label
             GUI.Label(trackRect, $"{displayIndex + 1}. {trackName}", _labelClipName);
 
-            // Mouse handling: single-select and double-click play
-            if (Event.current.type == EventType.MouseDown && trackRect.Contains(Event.current.mousePosition))
+            // --- Drop indicator (green line) ---
+            if (_isDragging)
             {
-                float now = Time.realtimeSinceStartup;
-
-                if (displayIndex == _lastClickedTrack && now < _singleClickExpireAt)
+                // Insert before this row if drop index equals this row index (and not dragging itself)
+                if (_dropDisplayIndex == displayIndex && displayIndex != _draggedDisplayIndex)
                 {
-                    // Double-click detected
-                    if (Event.current.shift) // SHIFT+Double-click: Add to Hybrid
-                    {
-                        // Get the actual track index (considering shuffle)
-                        int trackIndexToAdd = actualTrackIndex;
-
-                        // If we're viewing a shuffled playlist, get the actual track from shuffle order
-                        var viewedPlaylist = PlaylistManager.GetPlaylist(_viewingPlaylistType) as BasePlaylist;
-                        if (viewedPlaylist?.ShuffledOrder.Count > 0 &&
-                            viewedPlaylist.ShuffledOrder.Count == viewedPlaylist.TrackCount)
-                        {
-                            trackIndexToAdd = viewedPlaylist.ShuffledOrder[displayIndex];
-                        }
-
-
-                        AddTrackToHybridPlaylist(_viewingPlaylistType, trackIndexToAdd);
-
-                        _lastClickedTrack = -1;
-                        _selectedTrackIndex = -1;
-                        _singleClickExpireAt = 0f;
-                        Event.current.Use();
-                    }
-                    else if (Event.current.control) // CTRL+Double-click: Remove track
-                    {
-                        if (_viewingPlaylistType != PlaylistType.Default)
-                        {
-                            RemoveTrackFromPlaylist(_viewingPlaylistType, displayIndex, actualTrackIndex);
-                        }
-
-                        _lastClickedTrack = -1;
-                        _selectedTrackIndex = -1;
-                        _singleClickExpireAt = 0f;
-                        Event.current.Use();
-                    }
-                    else // Normal double-click: play track
-                    {
-                        // Double-click: play the track from the viewed playlist
-                        if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log($"Double-click: Playing track at display index {displayIndex} from viewed {_viewingPlaylistType}");
-
-                        // Get the actual track index (considering shuffle)
-                        int trackIndexToPlay = actualTrackIndex;
-
-                        // If we're viewing a shuffled playlist, get the actual track from shuffle order
-                        var viewedPlaylist = PlaylistManager.GetPlaylist(_viewingPlaylistType) as BasePlaylist;
-                        if (viewedPlaylist?.ShuffledOrder.Count > 0 &&
-                            viewedPlaylist.ShuffledOrder.Count == viewedPlaylist.TrackCount)
-                        {
-                            trackIndexToPlay = viewedPlaylist.ShuffledOrder[displayIndex];
-                            if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log($"Shuffled playlist: display index {displayIndex} = track index {trackIndexToPlay}");
-                        }
-
-                        // Use the unified playback method
-                        CustomMusicManager.PlayTrackWithMethod(trackIndexToPlay, _viewingPlaylistType);
-
-
-                        if (viewedPlaylist != null)
-                        {
-                            viewedPlaylist.CurrentTrackIndex = trackIndexToPlay;
-
-                            // If shuffled, update shuffle index
-                            if (viewedPlaylist.ShuffledOrder.Count > 0)
-                            {
-                                viewedPlaylist.SetShuffleIndex(displayIndex);
-                            }
-                        }
-
-                        _lastClickedTrack = -1;
-                        _selectedTrackIndex = -1;
-                        _singleClickExpireAt = 0f;
-                        Event.current.Use();
-                    }
+                    Rect lineRect = new Rect(0, displayIndex * rowHeight - 2, width - 20, 4);
+                    GUI.DrawTexture(lineRect, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0, Color.green, 0, 0);
                 }
-                else
+                // Insert after the last row
+                else if (_dropDisplayIndex == displayOrder.Count && displayIndex == displayOrder.Count - 1)
                 {
-                    // Single click: select display position
-                    _selectedTrackIndex = displayIndex;
-                    _lastClickedTrack = displayIndex;
-                    _singleClickExpireAt = now + DoubleClickThreshold;
-                    Event.current.Use();
+                    Rect lineRect = new Rect(0, (displayIndex + 1) * rowHeight - 2, width - 20, 4);
+                    GUI.DrawTexture(lineRect, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0, Color.green, 0, 0);
                 }
+            }
+
+            // --- MouseDown: potential drag start ---
+            if (ev.type == EventType.MouseDown && ev.button == 0 && trackRect.Contains(ev.mousePosition))
+            {
+                _draggedDisplayIndex = displayIndex;
+                _dropDisplayIndex = displayIndex; // initial insert before this row
+                _potentialDrag = true;
+                _dragStartMousePos = ev.mousePosition;
+                ev.Use(); // We'll decide later if it's click or drag
+            }
+        }
+
+        // Reset content color
+        GUI.contentColor = Color.white;
+
+        // --- Click/double‑click handling (only if no drag) ---
+        if (_potentialDrag && !_isDragging && ev.type == EventType.MouseUp && ev.button == 0)
+        {
+            float dist = Vector2.Distance(ev.mousePosition, _dragStartMousePos);
+            if (dist < 5f) // threshold for click
+            {
+                ProcessClick(displayOrder);
+            }
+            _potentialDrag = false;
+            ev.Use();
+        }
+
+        // --- Start drag if mouse moved beyond threshold ---
+        if (_potentialDrag && ev.type == EventType.MouseDrag)
+        {
+            float dist = Vector2.Distance(ev.mousePosition, _dragStartMousePos);
+            if (dist > 5f)
+            {
+                _isDragging = true;
+                _potentialDrag = false;
+                // Set initial drop insertion index based on current mouse position
+                float mouseY = ev.mousePosition.y - y + scrollPos.y;
+                int rowIndex = Mathf.Clamp((int)(mouseY / rowHeight), 0, displayOrder.Count - 1);
+                float fraction = (mouseY % rowHeight) / rowHeight;
+                int insertIndex = rowIndex;
+                if (fraction > 0.5f && rowIndex < displayOrder.Count - 1)
+                    insertIndex = rowIndex + 1;
+                else if (fraction > 0.5f && rowIndex == displayOrder.Count - 1)
+                    insertIndex = displayOrder.Count;
+                if (mouseY < 0) insertIndex = 0;
+                _dropDisplayIndex = Mathf.Clamp(insertIndex, 0, displayOrder.Count);
+                ev.Use();
+                GUI.changed = true;
             }
         }
 
         GUI.EndScrollView();
-        GUI.contentColor = Color.white;
-        SetScroll(_viewingPlaylistType, scrollPos);
 
         // Reset selection if double-click window expired
         if (_selectedTrackIndex != -1 && Time.realtimeSinceStartup >= _singleClickExpireAt)
@@ -1542,6 +1568,185 @@ public class MusicDisplayBehaviour : MonoBehaviour
             _lastClickedTrack = -1;
             _singleClickExpireAt = 0f;
         }
+
+        SetScroll(_viewingPlaylistType, scrollPos);
+    }
+
+    private void ProcessClick(List<int> displayOrder)
+    {
+        if (_draggedDisplayIndex < 0 || _draggedDisplayIndex >= displayOrder.Count)
+            return;
+
+        int displayIndex = _draggedDisplayIndex;
+        int actualTrackIndex = displayOrder[displayIndex];
+
+        float now = Time.realtimeSinceStartup;
+
+        if (displayIndex == _lastClickedTrack && now < _singleClickExpireAt)
+        {
+            // Double-click
+            if (Event.current.shift)
+            {
+                AddTrackToHybridPlaylist(_viewingPlaylistType, actualTrackIndex);
+            }
+            else if (Event.current.control && _viewingPlaylistType != PlaylistType.Default)
+            {
+                RemoveTrackFromPlaylist(_viewingPlaylistType, displayIndex, actualTrackIndex);
+            }
+            else
+            {
+                int trackIndexToPlay = actualTrackIndex;
+                var viewedPlaylist = PlaylistManager.GetPlaylist(_viewingPlaylistType) as BasePlaylist;
+                if (viewedPlaylist?.ShuffledOrder.Count > 0 && viewedPlaylist.ShuffledOrder.Count == viewedPlaylist.TrackCount)
+                    trackIndexToPlay = viewedPlaylist.ShuffledOrder[displayIndex];
+
+                CustomMusicManager.PlayTrackWithMethod(trackIndexToPlay, _viewingPlaylistType);
+                if (viewedPlaylist != null)
+                {
+                    viewedPlaylist.CurrentTrackIndex = trackIndexToPlay;
+                    if (viewedPlaylist.ShuffledOrder.Count > 0)
+                        viewedPlaylist.SetShuffleIndex(displayIndex);
+                }
+            }
+            _lastClickedTrack = -1;
+            _selectedTrackIndex = -1;
+            _singleClickExpireAt = 0f;
+        }
+        else
+        {
+            // Single click: select
+            _selectedTrackIndex = displayIndex;
+            _lastClickedTrack = displayIndex;
+            _singleClickExpireAt = now + DoubleClickThreshold;
+        }
+
+        _draggedDisplayIndex = -1; // reset after processing
+    }
+
+    private void ReorderPlaylist(PlaylistType playlistType, int fromDisplayIndex, int toDisplayIndex)
+    {
+        if (fromDisplayIndex == toDisplayIndex) return;
+
+        var playlist = PlaylistManager.GetPlaylist(playlistType) as BasePlaylist;
+        if (playlist == null) return;
+
+        // Get current display order (shuffled or natural)
+        List<int> displayOrder;
+        bool isShuffled = (playlist.ShuffledOrder.Count == playlist.TrackCount && playlist.ShuffledOrder.Count > 0);
+        if (isShuffled)
+            displayOrder = playlist.ShuffledOrder;
+        else
+            displayOrder = Enumerable.Range(0, playlist.TrackCount).ToList();
+
+        // Move item in displayOrder
+        int item = displayOrder[fromDisplayIndex];
+        displayOrder.RemoveAt(fromDisplayIndex);
+        displayOrder.Insert(toDisplayIndex, item);
+
+        // Get the actual track lists (we'll modify in place)
+        List<string> originalPaths = null;
+        List<AudioClip> originalClips = null;
+        string currentTrackPath = null;
+
+        switch (playlistType)
+        {
+            case PlaylistType.Local:
+                originalPaths = CustomMusicManager.LocalTrackPaths;
+                if (CustomMusicManager.IsLocalPlaylistPreloaded)
+                    originalClips = CustomMusicManager.LocalTracks;
+                if (CustomMusicManager.CurrentTrackIndex >= 0 && CustomMusicManager.CurrentTrackIndex < originalPaths.Count)
+                    currentTrackPath = originalPaths[CustomMusicManager.CurrentTrackIndex];
+                break;
+            case PlaylistType.Hybrid:
+                originalPaths = CustomMusicManager.HybridTrackPaths;
+                if (CustomMusicManager.HybridCurrentTrackIndex >= 0 && CustomMusicManager.HybridCurrentTrackIndex < originalPaths.Count)
+                    currentTrackPath = originalPaths[CustomMusicManager.HybridCurrentTrackIndex];
+                break;
+            case PlaylistType.Streams:
+                originalPaths = CustomMusicManager.StreamsTrackPaths;
+                if (CustomMusicManager.StreamsCurrentTrackIndex >= 0 && CustomMusicManager.StreamsCurrentTrackIndex < originalPaths.Count)
+                    currentTrackPath = originalPaths[CustomMusicManager.StreamsCurrentTrackIndex];
+                break;
+            default:
+                return;
+        }
+
+        if (originalPaths == null) return;
+
+        // Build new ordered lists temporarily
+        List<string> newPaths = new List<string>();
+        List<AudioClip> newClips = new List<AudioClip>();
+
+        foreach (int idx in displayOrder)
+        {
+            if (idx >= 0 && idx < originalPaths.Count)
+            {
+                newPaths.Add(originalPaths[idx]);
+                if (originalClips != null && idx < originalClips.Count)
+                    newClips.Add(originalClips[idx]);
+            }
+        }
+
+        // Replace contents in place (because setter is private)
+        originalPaths.Clear();
+        originalPaths.AddRange(newPaths);
+
+        if (originalClips != null)
+        {
+            originalClips.Clear();
+            originalClips.AddRange(newClips);
+        }
+
+        // Recreate the playlist object for Unity integration if needed
+        switch (playlistType)
+        {
+            case PlaylistType.Local:
+                if (CustomMusicManager.IsLocalPlaylistPreloaded)
+                    CustomMusicManager.CreateLocalPlaylistFromTracks();
+                break;
+            case PlaylistType.Hybrid:
+                CustomMusicManager.CreateHybridPlaylistFromTracks();
+                break;
+            case PlaylistType.Streams:
+                CustomMusicManager.CreateStreamsPlaylistFromTracks();
+                break;
+        }
+
+        // Clear shuffle state
+        playlist.ShuffledOrder.Clear();
+        playlist.PlayedTracks.Clear();
+        playlist.ShuffleIndex = 0;
+
+        // Update current track index: find the same track (or fallback)
+        int newIndex = -1;
+        if (!string.IsNullOrEmpty(currentTrackPath))
+        {
+            newIndex = originalPaths.IndexOf(currentTrackPath);
+        }
+        if (newIndex < 0 && originalPaths.Count > 0)
+            newIndex = 0;
+
+        switch (playlistType)
+        {
+            case PlaylistType.Local:
+                CustomMusicManager.CurrentTrackIndex = newIndex;
+                break;
+            case PlaylistType.Hybrid:
+                CustomMusicManager.HybridCurrentTrackIndex = newIndex;
+                break;
+            case PlaylistType.Streams:
+                CustomMusicManager.StreamsCurrentTrackIndex = newIndex;
+                break;
+        }
+        playlist.CurrentTrackIndex = newIndex;
+
+        // Reset drag state
+        _draggedDisplayIndex = -1;
+        _dropDisplayIndex = -1;
+        _isDragging = false;
+        GUI.changed = true;
+
+        Debug.Log($"Reordered {playlistType} playlist: moved from {fromDisplayIndex} to {toDisplayIndex}");
     }
     private void AddTrackToHybridPlaylist(PlaylistType sourcePlaylistType, int trackIndex, string trackPath = null)
     {
