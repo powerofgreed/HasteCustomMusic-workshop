@@ -1216,7 +1216,7 @@ public class CustomMusicManager : MonoBehaviour
             }
             else
             {
-                if (LandfallConfig.CurrentConfig.EachLevelNewNextTrack || StreamingClip.Instance.QueryBassCurrentSeconds() > 2)
+                if (LandfallConfig.CurrentConfig.EachLevelNewNextTrack && StreamingClip.Instance.QueryBassCurrentSeconds() > 2)
                 {
                     PlaylistManager.PlayNextTrack();
                     if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log("[CustomMusicManager] Entering new playing, play next track");

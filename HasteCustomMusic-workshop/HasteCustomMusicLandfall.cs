@@ -1430,7 +1430,7 @@ public class MusicDisplayBehaviour : MonoBehaviour
         {
             if (ev.type == EventType.MouseDrag)
             {
-                // Compute insertion index based on mouse Y (adjusted for scroll)
+                // Compute insertion index (same as before)
                 float mouseY = ev.mousePosition.y - y + scrollPos.y;
                 int rowIndex = Mathf.Clamp((int)(mouseY / rowHeight), 0, displayOrder.Count - 1);
                 float fraction = (mouseY % rowHeight) / rowHeight;
@@ -1438,7 +1438,7 @@ public class MusicDisplayBehaviour : MonoBehaviour
                 if (fraction > 0.5f && rowIndex < displayOrder.Count - 1)
                     insertIndex = rowIndex + 1;
                 else if (fraction > 0.5f && rowIndex == displayOrder.Count - 1)
-                    insertIndex = displayOrder.Count; // after last
+                    insertIndex = displayOrder.Count;
                 if (mouseY < 0) insertIndex = 0;
                 insertIndex = Mathf.Clamp(insertIndex, 0, displayOrder.Count);
 
@@ -1451,15 +1451,28 @@ public class MusicDisplayBehaviour : MonoBehaviour
             }
             else if (ev.type == EventType.MouseUp && ev.button == 0)
             {
-                // Perform drop if position changed
-                if (_draggedDisplayIndex != _dropDisplayIndex && _dropDisplayIndex >= 0 && _dropDisplayIndex <= displayOrder.Count)
+                // Define the scroll view rect (visible area)
+                Rect scrollRect = new Rect(x, y, width, height);
+
+                // Check if mouse is inside the scroll view
+                if (scrollRect.Contains(ev.mousePosition))
                 {
-                    // Convert insertion index to final display index after removal
-                    int fromIndex = _draggedDisplayIndex;
-                    int toIndex = (_dropDisplayIndex > fromIndex) ? _dropDisplayIndex - 1 : _dropDisplayIndex;
-                    ReorderPlaylist(_viewingPlaylistType, fromIndex, toIndex);
+                    // Perform drop only if position changed
+                    if (_draggedDisplayIndex != _dropDisplayIndex && _dropDisplayIndex >= 0 && _dropDisplayIndex <= displayOrder.Count)
+                    {
+                        int fromIndex = _draggedDisplayIndex;
+                        int toIndex = _dropDisplayIndex;
+                        if (toIndex > fromIndex) toIndex--; // adjust after removal
+                        ReorderPlaylist(_viewingPlaylistType, fromIndex, toIndex);
+                    }
                 }
-                // Reset drag state
+                else
+                {
+                    // Mouse released outside – cancel drag
+                    Debug.Log("Drag cancelled – mouse outside playlist window");
+                }
+
+                // Reset drag state in all cases
                 _draggedDisplayIndex = -1;
                 _dropDisplayIndex = -1;
                 _isDragging = false;
@@ -1477,19 +1490,20 @@ public class MusicDisplayBehaviour : MonoBehaviour
 
             bool isPlayingHere = (displayIndex == GetPlayingIndexForViewed());
             bool isSelectedHere = (displayIndex == _selectedTrackIndex);
+            bool isDraggedHere = (_isDragging && displayIndex == _draggedDisplayIndex);
 
             Rect trackRect = new Rect(0, displayIndex * rowHeight, width - 20, rowHeight);
 
-            // Highlight selected track with cyan background
-            if (isSelectedHere)
+            // Background: cyan for selected or dragged track
+            if (isSelectedHere || isDraggedHere)
             {
                 GUI.DrawTexture(trackRect, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0, new Color(0f, 1f, 1f, 0.3f), 0, 0);
             }
 
-            // Set text color: yellow for currently playing, white otherwise
+            // Text color: yellow for currently playing, white otherwise
             GUI.contentColor = isPlayingHere ? Color.yellow : Color.white;
 
-            // Draw track label
+            // Track label
             GUI.Label(trackRect, $"{displayIndex + 1}. {trackName}", _labelClipName);
 
             // --- Drop indicator (green line) ---
