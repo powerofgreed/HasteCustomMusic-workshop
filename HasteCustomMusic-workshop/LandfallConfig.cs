@@ -20,6 +20,7 @@ public static class LandfallConfig
         // Playback
         public bool LockEnabled = true;
         public bool ForceLocalPlaylist = false;
+        public bool EachLevelNewNextTrack = false;
         public string PlayOrder = "Sequential";
 
         // Loader

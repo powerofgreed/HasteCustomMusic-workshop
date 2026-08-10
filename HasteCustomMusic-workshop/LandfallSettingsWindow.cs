@@ -184,7 +184,7 @@ public class LandfallSettingsWindow : MonoBehaviour
         GUILayout.Label("Toggle UI:", GUILayout.Width(120));
         if (_editingToggleKey)
         {
-            GUILayout.Label("Press any key FEW TIME...", GUI.skin.textField);
+            GUILayout.Label("Press any key FEW TIMES...", GUI.skin.textField);
             if (GUILayout.Button("Cancel", GUILayout.Width(60)))
             {
                 _editingToggleKey = false;
@@ -255,6 +255,10 @@ public class LandfallSettingsWindow : MonoBehaviour
             LandfallConfig.CurrentConfig.PlayOrder = playOrders[newIndex];
         }
         GUILayout.EndHorizontal();
+
+        LandfallConfig.CurrentConfig.EachLevelNewNextTrack = GUILayout.Toggle(
+            LandfallConfig.CurrentConfig.EachLevelNewNextTrack,
+            "Play next track each time you enter a new level (might be buggy. DONT USE WITH RADIO)");
 
         GUILayout.EndVertical();
         GUILayout.Space(10);

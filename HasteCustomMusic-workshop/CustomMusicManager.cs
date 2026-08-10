@@ -453,7 +453,7 @@ public class CustomMusicManager : MonoBehaviour
             try { _streamingInstance.StopStream(); } catch { }
             _streamingInstance = null;
             CurrentPlaybackMode = MusicPlayerMode.None;
-            if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log("Streaming stopped");
+            if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log("[CustomMusicManager] Streaming stopped");
         }
     }
 
@@ -1198,7 +1198,7 @@ public class CustomMusicManager : MonoBehaviour
         // Safety check
         if (MusicPlayer.Instance == null)
         {
-            Debug.LogWarning("[CustomMusic] MusicPlayer.Instance is null in EnsureCustomPlaylistPlaying");
+            if (LandfallConfig.CurrentConfig.ShowDebug) Debug.LogWarning("[CustomMusicManager] MusicPlayer.Instance is null in EnsureCustomPlaylistPlaying");
             return;
         }
 
@@ -1212,11 +1212,16 @@ public class CustomMusicManager : MonoBehaviour
             if (MusicPlayer.Instance.m_AudioSourceCurrent?.clip == null)
             {
                 PlaylistManager.PlayCurrentTrack();
-                Debug.Log("[CustomMusic] EnsureCustomPlaylistPlaying: Empty clip, restarted custom playlist.");
+                if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log("[CustomMusicManager] EnsureCustomPlaylistPlaying: Empty clip, restarted custom playlist.");
             }
             else
             {
-                return;
+                if (LandfallConfig.CurrentConfig.EachLevelNewNextTrack || StreamingClip.Instance.QueryBassCurrentSeconds() > 2)
+                {
+                    PlaylistManager.PlayNextTrack();
+                    if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log("[CustomMusicManager] Entering new playing, play next track");
+                }
+                    
             }
         }
     }
