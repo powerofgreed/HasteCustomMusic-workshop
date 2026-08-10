@@ -18,6 +18,7 @@
 using HarmonyLib;
 using Landfall.Haste.Music;
 using UnityEngine;
+using Landfall.Haste;
 using static StreamingClip;
 
 public class CustomMusicManager : MonoBehaviour
@@ -1189,59 +1190,119 @@ public class CustomMusicManager : MonoBehaviour
         catch (Exception ex) { Debug.LogError($"RunOnMainThread error: {ex}"); tcs.SetException(ex); }
     }
 
+    public static void EnsureCustomPlaylistPlaying()
+    {
+        if (!LockCustomPlaylist || !IsAnyCustomPlaylistActive)
+            return;
+
+        // Safety check
+        if (MusicPlayer.Instance == null)
+        {
+            Debug.LogWarning("[CustomMusic] MusicPlayer.Instance is null in EnsureCustomPlaylistPlaying");
+            return;
+        }
+
+        var currentPlaying = MusicPlayer.Instance.currentlyPlaying?.playlist;
+        var activePlaylist = GetCurrentActivePlaylist();
+
+        // If the currently playing playlist is not our custom one, or nothing is playing
+        if (currentPlaying != activePlaylist)
+        {
+            // If audio source is empty, just start our playlist
+            if (MusicPlayer.Instance.m_AudioSourceCurrent?.clip == null)
+            {
+                PlaylistManager.PlayCurrentTrack();
+                Debug.Log("[CustomMusic] EnsureCustomPlaylistPlaying: Empty clip, restarted custom playlist.");
+            }
+            else
+            {
+                return;
+            }
+        }
+    }
+
     // ------------------------------
     // Harmony patches 
     // ------------------------------
-    [HarmonyPatch(typeof(MusicPlayer), "InitRandomAndPlay")]
+    [HarmonyPatch(typeof(RunData), "currentNodeStatus", MethodType.Setter)]
+    [HarmonyPostfix]
+    private static void RunData_CurrentNodeStatus_Postfix(NGOPlayer.PlayerNodeStatus value)
+    {
+        if (value.ToString() == "Running") 
+        {
+            Debug.Log("[CustomMusic] RunData status changed to Running – ensuring custom playlist.");
+            EnsureCustomPlaylistPlaying();
+        }
+    }
+
+    [HarmonyPatch(typeof(MusicPlayer), "Update")]
     [HarmonyPrefix]
-    private static bool InitRandomAndPlay_Prefix(MusicPlaylist newPlaylist)
+    private static bool Update_Prefix(MusicPlayer __instance)
     {
         try
         {
-            Debug.Log($"InitRandomAndPlay called with: {newPlaylist?.name}");
+            // Skip if no currently playing track or playlist
+            if (__instance.currentlyPlaying == null || __instance.currentlyPlaying.playlist == null)
+                return true;
 
-            if (newPlaylist != null &&
-                newPlaylist != LocalPlaylist &&
-                newPlaylist != HybridPlaylist &&
-                newPlaylist != StreamsPlaylist &&
-                !IsUserInitiatedChange)
-            {
-                _lastAttemptedDefaultPlaylist = newPlaylist;
-                _lastAttemptedTrackIndex = 0;
-                Debug.Log($"Stored default playlist: {newPlaylist.name}");
-            }
+            // Skip if not a random playlist
+            if (!__instance.currentlyPlaying.playlist.playRandom)
+                return true;
 
-            if (LockCustomPlaylist &&
-                IsAnyCustomPlaylistActive &&
-                newPlaylist != GetCurrentActivePlaylist() &&
-                !IsUserInitiatedChange)
+            // Ensure randomTrackIds is valid
+            if (__instance.randomTrackIds == null || __instance.randomTrackIds.Count == 0)
             {
-                if (MusicPlayer.Instance.m_AudioSourceCurrent?.clip == null)
+                // Initialize random track ids if needed
+                __instance.randomTrackIds = new List<int>();
+                for (int i = 0; i < __instance.currentlyPlaying.playlist.tracks.Length; i++)
                 {
-                    PlaylistManager.PlayCurrentTrack();
-                    Debug.Log($"Empty clip. Playback restarted.");
+                    __instance.randomTrackIds.Add(i);
                 }
-                Debug.Log($"Blocked InitRandomAndPlay to {newPlaylist?.name} (Locked to {CurrentPlaybackPlaylistType})");
-                return false; // Block the original method from executing
-            }
-            IsUserInitiatedChange = false;
 
-            if (newPlaylist != GetCurrentActivePlaylist() &&
-                newPlaylist != LocalPlaylist &&
-                newPlaylist != HybridPlaylist &&
-                newPlaylist != StreamsPlaylist)
+                // Shuffle
+                var random = new System.Random();
+                for (int i = __instance.randomTrackIds.Count - 1; i > 0; i--)
+                {
+                    int j = random.Next(i + 1);
+                    int temp = __instance.randomTrackIds[i];
+                    __instance.randomTrackIds[i] = __instance.randomTrackIds[j];
+                    __instance.randomTrackIds[j] = temp;
+                }
+
+                // Ensure currentRandomId is valid
+                if (__instance.currentRandomId < 0 || __instance.currentRandomId >= __instance.randomTrackIds.Count)
+                    __instance.currentRandomId = 0;
+            }
+
+            // Check bounds before accessing
+            int nextId = __instance.currentRandomId + 1;
+            if (nextId >= __instance.randomTrackIds.Count)
+                nextId = 0;
+
+            // Additional bounds checks
+            if (__instance.currentRandomId < 0 || __instance.currentRandomId >= __instance.randomTrackIds.Count)
+                return false;
+
+            if (nextId < 0 || nextId >= __instance.randomTrackIds.Count)
+                return false;
+
+            int currentTrackId = __instance.randomTrackIds[__instance.currentRandomId];
+            int nextTrackId = __instance.randomTrackIds[nextId];
+
+            // Ensure track indices are valid
+            if (currentTrackId < 0 || currentTrackId >= __instance.currentlyPlaying.playlist.tracks.Length ||
+                nextTrackId < 0 || nextTrackId >= __instance.currentlyPlaying.playlist.tracks.Length)
             {
-                CurrentPlaybackPlaylistType = PlaylistType.Default;
-                Debug.Log("Updated to Default playlist type");
+                return false;
             }
 
+            // All checks passed, let original method run
             return true;
         }
         catch (Exception ex)
         {
-            // Critical: Log error but allow original method to run
-            Debug.LogError($"Harmony patch InitRandomAndPlay_Prefix failed: {ex}");
-            return true; // Allow original method to execute normally
+            Debug.LogError($"[CustomMusic] Update_Prefix error: {ex}");
+            return false; // Prevent original method from running
         }
     }
 
@@ -1263,20 +1324,15 @@ public class CustomMusicManager : MonoBehaviour
                 _lastAttemptedTrackIndex = trackId;
                 Debug.Log($"Stored default playlist: {newPlaylist.name}, track {trackId}");
             }
-
-            if (LockCustomPlaylist &&
-                IsAnyCustomPlaylistActive &&
-                newPlaylist != GetCurrentActivePlaylist() &&
-                !IsUserInitiatedChange)
-            {
-                if (MusicPlayer.Instance.m_AudioSourceCurrent?.clip == null)
+               
+                if (LockCustomPlaylist &&
+                    IsAnyCustomPlaylistActive &&
+                    newPlaylist != GetCurrentActivePlaylist() &&
+                    !IsUserInitiatedChange)
                 {
-                    PlaylistManager.PlayCurrentTrack();
-                    Debug.Log($"Empty clip. Playback restarted.");
+                    Debug.Log($"Blocked ChangePlaylist to {newPlaylist?.name} (Locked to {CurrentPlaybackPlaylistType})");
+                    return false; // Block the original method from executing
                 }
-                Debug.Log($"Blocked ChangePlaylist to {newPlaylist?.name} (Locked to {CurrentPlaybackPlaylistType})");
-                return false; // Block the original method from executing
-            }
             IsUserInitiatedChange = false;
 
             if (newPlaylist == LocalPlaylist)
