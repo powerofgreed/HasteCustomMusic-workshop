@@ -1356,9 +1356,9 @@ public class MusicDisplayBehaviour : MonoBehaviour
     {
         return CustomMusicManager.CurrentPlayOrder switch
         {
-            CustomMusicManager.PlayOrder.Sequential => "▶▶▶",
+            CustomMusicManager.PlayOrder.Sequential => "❶▶❷▶❸▶",
             CustomMusicManager.PlayOrder.Loop => "↳↰",
-            CustomMusicManager.PlayOrder.Random => "❹▶❶▶❸",
+            CustomMusicManager.PlayOrder.Random => "❹▶❶▶❸▶",
             _ => "▶▶",
         };
     }

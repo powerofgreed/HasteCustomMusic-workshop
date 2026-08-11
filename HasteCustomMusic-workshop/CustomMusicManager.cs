@@ -169,7 +169,6 @@ public class CustomMusicManager : MonoBehaviour
             return;
         }
 
-        Harmony.CreateAndPatchAll(typeof(CustomMusicManager));
     }
 
     private void OnDestroy()
