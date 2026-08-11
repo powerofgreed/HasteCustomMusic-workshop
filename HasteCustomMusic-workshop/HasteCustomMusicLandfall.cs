@@ -52,7 +52,7 @@ public static class HasteCustomMusicLandfall
 
         // Initialize Harmony
         _harmony = new Harmony("com.PoG.HasteCustomMusic");
-        _harmony.PatchAll(typeof(CustomMusicManager)); 
+        _harmony.PatchAll(typeof(CustomMusicManager));
 
         // Create main behaviour
         var gameObject = new GameObject("HasteCustomMusicController");
@@ -145,7 +145,7 @@ public class MusicDisplayBehaviour : MonoBehaviour
 
                 _selectedTrackIndex = -1;
                 _lastClickedTrack = -1;
-                if(LandfallConfig.CurrentConfig.ShowDebug) Debug.Log($"Active tab: {_activeTab}, Viewing: {_viewingPlaylistType}, Playing: {CustomMusicManager.CurrentPlaybackPlaylistType}");
+                if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log($"Active tab: {_activeTab}, Viewing: {_viewingPlaylistType}, Playing: {CustomMusicManager.CurrentPlaybackPlaylistType}");
             }
         }
     }
@@ -1408,7 +1408,6 @@ public class MusicDisplayBehaviour : MonoBehaviour
         var scrollPos = GetScroll(_viewingPlaylistType);
         float rowHeight = 20f;
 
-        // Determine display order (natural or shuffled)
         List<int> displayOrder;
         bool isShuffled = (playlistToDisplay.ShuffledOrder.Count == playlistToDisplay.TrackCount && playlistToDisplay.ShuffledOrder.Count > 0);
         displayOrder = isShuffled ? playlistToDisplay.ShuffledOrder : Enumerable.Range(0, playlistToDisplay.TrackCount).ToList();
@@ -1430,49 +1429,30 @@ public class MusicDisplayBehaviour : MonoBehaviour
         {
             if (ev.type == EventType.MouseDrag)
             {
-                // Compute insertion index (same as before)
+                // Compute insertion index: always after the hovered row (or at start if above first)
                 float mouseY = ev.mousePosition.y - y + scrollPos.y;
-                int rowIndex = Mathf.Clamp((int)(mouseY / rowHeight), 0, displayOrder.Count - 1);
-                float fraction = (mouseY % rowHeight) / rowHeight;
-                int insertIndex = rowIndex;
-                if (fraction > 0.5f && rowIndex < displayOrder.Count - 1)
-                    insertIndex = rowIndex + 1;
-                else if (fraction > 0.5f && rowIndex == displayOrder.Count - 1)
-                    insertIndex = displayOrder.Count;
-                if (mouseY < 0) insertIndex = 0;
-                insertIndex = Mathf.Clamp(insertIndex, 0, displayOrder.Count);
-
-                if (insertIndex != _dropDisplayIndex)
+                if (mouseY < 0)
+                    _dropDisplayIndex = 0;
+                else
                 {
-                    _dropDisplayIndex = insertIndex;
-                    GUI.changed = true;
+                    int rowIndex = (int)(mouseY / rowHeight);
+                    _dropDisplayIndex = Mathf.Clamp(rowIndex + 1, 0, displayOrder.Count);
                 }
+                GUI.changed = true;
                 ev.Use();
             }
             else if (ev.type == EventType.MouseUp && ev.button == 0)
             {
-                // Define the scroll view rect (visible area)
-                Rect scrollRect = new Rect(x, y, width, height);
-
-                // Check if mouse is inside the scroll view
-                if (scrollRect.Contains(ev.mousePosition))
+                // Always perform drop (no cancellation)
+                if (_draggedDisplayIndex != _dropDisplayIndex && _dropDisplayIndex >= 0 && _dropDisplayIndex <= displayOrder.Count)
                 {
-                    // Perform drop only if position changed
-                    if (_draggedDisplayIndex != _dropDisplayIndex && _dropDisplayIndex >= 0 && _dropDisplayIndex <= displayOrder.Count)
-                    {
-                        int fromIndex = _draggedDisplayIndex;
-                        int toIndex = _dropDisplayIndex;
-                        if (toIndex > fromIndex) toIndex--; // adjust after removal
-                        ReorderPlaylist(_viewingPlaylistType, fromIndex, toIndex);
-                    }
-                }
-                else
-                {
-                    // Mouse released outside – cancel drag
-                    Debug.Log("Drag cancelled – mouse outside playlist window");
+                    int fromIndex = _draggedDisplayIndex;
+                    int toIndex = _dropDisplayIndex;
+                    if (toIndex > fromIndex) toIndex--; // adjust because we removed the dragged item
+                    ReorderPlaylist(_viewingPlaylistType, fromIndex, toIndex);
                 }
 
-                // Reset drag state in all cases
+                // Reset drag state
                 _draggedDisplayIndex = -1;
                 _dropDisplayIndex = -1;
                 _isDragging = false;
@@ -1494,31 +1474,29 @@ public class MusicDisplayBehaviour : MonoBehaviour
 
             Rect trackRect = new Rect(0, displayIndex * rowHeight, width - 20, rowHeight);
 
-            // Background: cyan for selected or dragged track
+            // Cyan background for selected or dragged track
             if (isSelectedHere || isDraggedHere)
             {
                 GUI.DrawTexture(trackRect, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0, new Color(0f, 1f, 1f, 0.3f), 0, 0);
             }
 
-            // Text color: yellow for currently playing, white otherwise
+            // Yellow text for current playing track
             GUI.contentColor = isPlayingHere ? Color.yellow : Color.white;
-
-            // Track label
             GUI.Label(trackRect, $"{displayIndex + 1}. {trackName}", _labelClipName);
 
-            // --- Drop indicator (green line) ---
+            // --- Drop indicator (green line) – drawn BEFORE the target row, which effectively means AFTER the previous row ---
             if (_isDragging)
             {
-                // Insert before this row if drop index equals this row index (and not dragging itself)
                 if (_dropDisplayIndex == displayIndex && displayIndex != _draggedDisplayIndex)
                 {
-                    Rect lineRect = new Rect(0, displayIndex * rowHeight - 2, width - 20, 4);
+                    // Line appears between row (displayIndex-1) and row (displayIndex)
+                    Rect lineRect = new Rect(0, displayIndex * rowHeight, width - 20, 2);
                     GUI.DrawTexture(lineRect, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0, Color.green, 0, 0);
                 }
-                // Insert after the last row
                 else if (_dropDisplayIndex == displayOrder.Count && displayIndex == displayOrder.Count - 1)
                 {
-                    Rect lineRect = new Rect(0, (displayIndex + 1) * rowHeight - 2, width - 20, 4);
+                    // Line after the last row
+                    Rect lineRect = new Rect(0, (displayIndex + 1) * rowHeight, width - 20, 2);
                     GUI.DrawTexture(lineRect, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0, Color.green, 0, 0);
                 }
             }
@@ -1527,21 +1505,20 @@ public class MusicDisplayBehaviour : MonoBehaviour
             if (ev.type == EventType.MouseDown && ev.button == 0 && trackRect.Contains(ev.mousePosition))
             {
                 _draggedDisplayIndex = displayIndex;
-                _dropDisplayIndex = displayIndex; // initial insert before this row
+                _dropDisplayIndex = displayIndex; // initial (will be updated on drag)
                 _potentialDrag = true;
                 _dragStartMousePos = ev.mousePosition;
-                ev.Use(); // We'll decide later if it's click or drag
+                ev.Use();
             }
         }
 
-        // Reset content color
         GUI.contentColor = Color.white;
 
-        // --- Click/double‑click handling (only if no drag) ---
+        // --- Click/double‑click (if not drag) ---
         if (_potentialDrag && !_isDragging && ev.type == EventType.MouseUp && ev.button == 0)
         {
             float dist = Vector2.Distance(ev.mousePosition, _dragStartMousePos);
-            if (dist < 5f) // threshold for click
+            if (dist < 5f)
             {
                 ProcessClick(displayOrder);
             }
@@ -1549,7 +1526,7 @@ public class MusicDisplayBehaviour : MonoBehaviour
             ev.Use();
         }
 
-        // --- Start drag if mouse moved beyond threshold ---
+        // --- Start drag if mouse moved ---
         if (_potentialDrag && ev.type == EventType.MouseDrag)
         {
             float dist = Vector2.Distance(ev.mousePosition, _dragStartMousePos);
@@ -1557,17 +1534,15 @@ public class MusicDisplayBehaviour : MonoBehaviour
             {
                 _isDragging = true;
                 _potentialDrag = false;
-                // Set initial drop insertion index based on current mouse position
+                // Set initial drop insertion index
                 float mouseY = ev.mousePosition.y - y + scrollPos.y;
-                int rowIndex = Mathf.Clamp((int)(mouseY / rowHeight), 0, displayOrder.Count - 1);
-                float fraction = (mouseY % rowHeight) / rowHeight;
-                int insertIndex = rowIndex;
-                if (fraction > 0.5f && rowIndex < displayOrder.Count - 1)
-                    insertIndex = rowIndex + 1;
-                else if (fraction > 0.5f && rowIndex == displayOrder.Count - 1)
-                    insertIndex = displayOrder.Count;
-                if (mouseY < 0) insertIndex = 0;
-                _dropDisplayIndex = Mathf.Clamp(insertIndex, 0, displayOrder.Count);
+                if (mouseY < 0)
+                    _dropDisplayIndex = 0;
+                else
+                {
+                    int rowIndex = (int)(mouseY / rowHeight);
+                    _dropDisplayIndex = Mathf.Clamp(rowIndex + 1, 0, displayOrder.Count);
+                }
                 ev.Use();
                 GUI.changed = true;
             }
@@ -1575,7 +1550,7 @@ public class MusicDisplayBehaviour : MonoBehaviour
 
         GUI.EndScrollView();
 
-        // Reset selection if double-click window expired
+        // Reset selection timeout
         if (_selectedTrackIndex != -1 && Time.realtimeSinceStartup >= _singleClickExpireAt)
         {
             _selectedTrackIndex = -1;
@@ -1657,19 +1632,27 @@ public class MusicDisplayBehaviour : MonoBehaviour
         displayOrder.RemoveAt(fromDisplayIndex);
         displayOrder.Insert(toDisplayIndex, item);
 
-        // Get the actual track lists (we'll modify in place)
+        // Get the actual track lists
         List<string> originalPaths = null;
         List<AudioClip> originalClips = null;
         string currentTrackPath = null;
+        AudioClip currentTrackClip = null;
 
         switch (playlistType)
         {
             case PlaylistType.Local:
                 originalPaths = CustomMusicManager.LocalTrackPaths;
                 if (CustomMusicManager.IsLocalPlaylistPreloaded)
+                {
                     originalClips = CustomMusicManager.LocalTracks;
-                if (CustomMusicManager.CurrentTrackIndex >= 0 && CustomMusicManager.CurrentTrackIndex < originalPaths.Count)
-                    currentTrackPath = originalPaths[CustomMusicManager.CurrentTrackIndex];
+                    if (CustomMusicManager.CurrentTrackIndex >= 0 && CustomMusicManager.CurrentTrackIndex < originalClips.Count)
+                        currentTrackClip = originalClips[CustomMusicManager.CurrentTrackIndex];
+                }
+                else
+                {
+                    if (CustomMusicManager.CurrentTrackIndex >= 0 && CustomMusicManager.CurrentTrackIndex < originalPaths.Count)
+                        currentTrackPath = originalPaths[CustomMusicManager.CurrentTrackIndex];
+                }
                 break;
             case PlaylistType.Hybrid:
                 originalPaths = CustomMusicManager.HybridTrackPaths;
@@ -1685,33 +1668,36 @@ public class MusicDisplayBehaviour : MonoBehaviour
                 return;
         }
 
-        if (originalPaths == null) return;
+        if (originalPaths == null && originalClips == null) return;
 
-        // Build new ordered lists temporarily
+        // Build reordered lists (tolerate missing paths in preload mode)
         List<string> newPaths = new List<string>();
         List<AudioClip> newClips = new List<AudioClip>();
 
         foreach (int idx in displayOrder)
         {
-            if (idx >= 0 && idx < originalPaths.Count)
-            {
+            // Add path if it exists (may be empty in preload)
+            if (originalPaths != null && idx >= 0 && idx < originalPaths.Count)
                 newPaths.Add(originalPaths[idx]);
-                if (originalClips != null && idx < originalClips.Count)
-                    newClips.Add(originalClips[idx]);
-            }
+
+            // Add clip if it exists (only in preload)
+            if (originalClips != null && idx >= 0 && idx < originalClips.Count)
+                newClips.Add(originalClips[idx]);
         }
 
-        // Replace contents in place (because setter is private)
-        originalPaths.Clear();
-        originalPaths.AddRange(newPaths);
-
+        // Replace contents in place
+        if (originalPaths != null)
+        {
+            originalPaths.Clear();
+            originalPaths.AddRange(newPaths);
+        }
         if (originalClips != null)
         {
             originalClips.Clear();
             originalClips.AddRange(newClips);
         }
 
-        // Recreate the playlist object for Unity integration if needed
+        // Recreate the Unity MusicPlaylist asset (for preloaded local playlist)
         switch (playlistType)
         {
             case PlaylistType.Local:
@@ -1726,20 +1712,27 @@ public class MusicDisplayBehaviour : MonoBehaviour
                 break;
         }
 
-        // Clear shuffle state
+        // Reset shuffle state
         playlist.ShuffledOrder.Clear();
         playlist.PlayedTracks.Clear();
         playlist.ShuffleIndex = 0;
 
-        // Update current track index: find the same track (or fallback)
+        // Find the new index of the currently playing track
         int newIndex = -1;
-        if (!string.IsNullOrEmpty(currentTrackPath))
+        if (currentTrackClip != null && originalClips != null)
+        {
+            newIndex = originalClips.IndexOf(currentTrackClip);
+        }
+        else if (!string.IsNullOrEmpty(currentTrackPath) && originalPaths != null)
         {
             newIndex = originalPaths.IndexOf(currentTrackPath);
         }
-        if (newIndex < 0 && originalPaths.Count > 0)
+
+        // Fallback to first track if current not found
+        if (newIndex < 0 && (originalPaths?.Count > 0 || originalClips?.Count > 0))
             newIndex = 0;
 
+        // Update the global current index for this playlist type
         switch (playlistType)
         {
             case PlaylistType.Local:
@@ -2341,9 +2334,9 @@ public class MusicDisplayBehaviour : MonoBehaviour
                 {
                     float clipLen = player.m_AudioSourceCurrent.clip.length;
                     // If clip length is tiny or invalid skip
-                    if (clipLen > 0.26f)
+                    if (clipLen > 0.96f)
                     {
-                        float endThreshold = Mathf.Max(0.1f, clipLen - 0.26f);
+                        float endThreshold = Mathf.Max(0.1f, clipLen - 0.96f);
                         if (player.m_AudioSourceCurrent.time >= endThreshold)
                         {
                             shouldAdvance = true;

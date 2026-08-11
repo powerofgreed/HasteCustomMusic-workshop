@@ -297,7 +297,7 @@ public class LandfallSettingsWindow : MonoBehaviour
 
         LandfallConfig.CurrentConfig.PreloadEntirePlaylist = GUILayout.Toggle(
             LandfallConfig.CurrentConfig.PreloadEntirePlaylist,
-            "Preload Entire Playlist (More RAM, Less CPU)");
+            "Preload Entire Playlist (More RAM, Less CPU). Use only if everything else doesnt work");
 
         LandfallConfig.CurrentConfig.ScanSubfolders = GUILayout.Toggle(
             LandfallConfig.CurrentConfig.ScanSubfolders,
@@ -319,7 +319,7 @@ public class LandfallSettingsWindow : MonoBehaviour
 
         LandfallConfig.CurrentConfig.ShowDebug = GUILayout.Toggle(
             LandfallConfig.CurrentConfig.ShowDebug,
-            "Enable Debug Logging");
+            "Enable Debug Logging. DO NOT ENABLE IT FOR FUN");
 
         // Config file info
         GUILayout.Label("Config Location:", GUILayout.Height(20));

@@ -16,9 +16,9 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 using HarmonyLib;
+using Landfall.Haste;
 using Landfall.Haste.Music;
 using UnityEngine;
-using Landfall.Haste;
 using static StreamingClip;
 
 public class CustomMusicManager : MonoBehaviour
@@ -1189,6 +1189,7 @@ public class CustomMusicManager : MonoBehaviour
         catch (Exception ex) { Debug.LogError($"RunOnMainThread error: {ex}"); tcs.SetException(ex); }
     }
 
+    private static float T=0;
     public static void EnsureCustomPlaylistPlaying()
     {
         if (!LockCustomPlaylist || !IsAnyCustomPlaylistActive)
@@ -1204,27 +1205,45 @@ public class CustomMusicManager : MonoBehaviour
         var currentPlaying = MusicPlayer.Instance.currentlyPlaying?.playlist;
         var activePlaylist = GetCurrentActivePlaylist();
 
-        // If the currently playing playlist is not our custom one, or nothing is playing
-        if (currentPlaying != activePlaylist)
+        // If audio source is empty, just start our playlist
+        if (MusicPlayer.Instance.m_AudioSourceCurrent?.clip == null)
         {
-            // If audio source is empty, just start our playlist
-            if (MusicPlayer.Instance.m_AudioSourceCurrent?.clip == null)
+            PlaylistManager.PlayCurrentTrack();
+            if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log("[CustomMusicManager] EnsureCustomPlaylistPlaying: Empty clip, restarted custom playlist.");
+        }
+        else
+        {
+            float t = 0;
+            switch (CustomMusicManager.CurrentPlaybackMethod)
             {
-                PlaylistManager.PlayCurrentTrack();
-                if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log("[CustomMusicManager] EnsureCustomPlaylistPlaying: Empty clip, restarted custom playlist.");
+                case PlaybackMethod.UnityAudio:
+                    var audioSource = MusicPlayer.Instance?.m_AudioSourceCurrent;
+                    if (audioSource != null && audioSource.clip != null)
+                    {
+                        t = audioSource.time;
+                        if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log($"[CustomMusicManager] T = audioSource.time = {T}");
+                    }
+                    break;
+
+                case PlaybackMethod.Streaming:
+                    if (CustomMusicManagerExtensions.IsStreamPlaying())
+                    {
+
+                        t = CustomMusicManagerExtensions.GetStreamCurrentTime();
+                        if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log($"[CustomMusicManager] T = CustomMusicManagerExtensions.GetStreamCurrentTime() = {T}");
+                    }
+                    break;
+
             }
-            else
+            if (LandfallConfig.CurrentConfig.EachLevelNewNextTrack && t > 2 && t!=T)
             {
-                if (LandfallConfig.CurrentConfig.EachLevelNewNextTrack && StreamingClip.Instance.QueryBassCurrentSeconds() > 2)
-                {
-                    PlaylistManager.PlayNextTrack();
-                    if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log("[CustomMusicManager] Entering new playing, play next track");
-                }
-                    
+                PlaylistManager.PlayNextTrack();
+                if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log("[CustomMusicManager] Entering new playing, play next track");
+                T = t;
             }
         }
+        if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log("[CustomMusicManager] Ensuring ended.");
     }
-
     // ------------------------------
     // Harmony patches 
     // ------------------------------
@@ -1232,7 +1251,7 @@ public class CustomMusicManager : MonoBehaviour
     [HarmonyPostfix]
     private static void RunData_CurrentNodeStatus_Postfix(NGOPlayer.PlayerNodeStatus value)
     {
-        if (value.ToString() == "Running") 
+        if (value.ToString() == "Running")
         {
             Debug.Log("[CustomMusic] RunData status changed to Running – ensuring custom playlist.");
             EnsureCustomPlaylistPlaying();
@@ -1328,15 +1347,15 @@ public class CustomMusicManager : MonoBehaviour
                 _lastAttemptedTrackIndex = trackId;
                 Debug.Log($"Stored default playlist: {newPlaylist.name}, track {trackId}");
             }
-               
-                if (LockCustomPlaylist &&
-                    IsAnyCustomPlaylistActive &&
-                    newPlaylist != GetCurrentActivePlaylist() &&
-                    !IsUserInitiatedChange)
-                {
-                    Debug.Log($"Blocked ChangePlaylist to {newPlaylist?.name} (Locked to {CurrentPlaybackPlaylistType})");
-                    return false; // Block the original method from executing
-                }
+
+            if (LockCustomPlaylist &&
+                IsAnyCustomPlaylistActive &&
+                newPlaylist != GetCurrentActivePlaylist() &&
+                !IsUserInitiatedChange)
+            {
+                Debug.Log($"Blocked ChangePlaylist to {newPlaylist?.name} (Locked to {CurrentPlaybackPlaylistType})");
+                return false; // Block the original method from executing
+            }
             IsUserInitiatedChange = false;
 
             if (newPlaylist == LocalPlaylist)
