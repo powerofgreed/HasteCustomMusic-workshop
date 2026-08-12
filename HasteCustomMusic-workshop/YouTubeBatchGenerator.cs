@@ -70,7 +70,7 @@ public static class YouTubeBatchGenerator
                "    pause\r\n" +
                "    exit /b 0\r\n" +
                ")\r\n" +
-               "\"%YTDLP%\" --update --ffmpeg-location \"%FFMPEG_DIR%\" --ignore-errors --extract-audio --audio-format mp3 --audio-quality 0 --add-metadata" + embedThumbnailFlag + cookiesFlag + " --output \"%DEST%\\%%(playlist_index|)s%%(playlist_index|- )s%%(title)s.%%(ext)s\" \"%input_url%\"\r\n" +
+               "\"%YTDLP%\" --update --ffmpeg-location \"%FFMPEG_DIR%\" --ignore-errors --extract-audio --extractor-args \"youtube:player_client=default,web_safari\" --audio-format mp3 --audio-quality 0 --add-metadata" + embedThumbnailFlag + cookiesFlag + " --output \"%DEST%\\%%(playlist_index|)s%%(playlist_index|- )s%%(title)s.%%(ext)s\" \"%input_url%\"\r\n" +
                "echo.\r\n" +
                "echo Download complete!\r\n" +
                "pause\r\n" +
@@ -123,7 +123,11 @@ public static class YouTubeBatchGenerator
                ")\r\n" +
                "if exist \"%LOGFILE%\" del \"%LOGFILE%\" >nul 2>&1\r\n" +
                "echo %DATE% %TIME% - Starting installation > \"%LOGFILE%\"\r\n" +
-               "echo [1/3] Downloading yt-dlp...\r\n" +
+               "echo [1/4] Installing Deno...\r\n" +
+               "echo Deno is required for improved JavaScript compatibility with yt-dlp.\r\n" +
+               "powershell -NoProfile -Command \"try { irm https://deno.land/install.ps1 | iex } catch { Write-Host 'WARNING: Deno installation failed or Deno is already installed. Continuing...'; exit 0 }\"\r\n" +
+               "echo %DATE% %TIME% - Deno installation attempted >> \"%LOGFILE%\"\r\n" +
+               "echo [2/4] Downloading yt-dlp...\r\n" +
                "echo Source: https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe\r\n" +
                "powershell -NoProfile -Command \"try { Invoke-WebRequest -Uri 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe' -OutFile '%YT_DLP_DIR%\\yt-dlp.exe' -TimeoutSec 90 } catch { Write-Host 'ERROR:' $_.Exception.Message; exit 1 }\"\r\n" +
                "if errorlevel 1 (\r\n" +
@@ -141,7 +145,7 @@ public static class YouTubeBatchGenerator
                "    exit /b 1\r\n" +
                ")\r\n" +
                "echo ✓ yt-dlp downloaded >> \"%LOGFILE%\"\r\n" +
-               "echo [2/3] Downloading ffmpeg ZIP...\r\n" +
+               "echo [3/4] Downloading ffmpeg ZIP...\r\n" +
                "echo Source: https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip\r\n" +
                "if exist \"%TEMP_ZIP%\" del /Q \"%TEMP_ZIP%\" >nul 2>&1\r\n" +
                "powershell -NoProfile -Command \"try { Invoke-WebRequest -Uri 'https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip' -OutFile '%TEMP_ZIP%' -TimeoutSec 180 } catch { Write-Host 'ERROR:' $_.Exception.Message; exit 1 }\"\r\n" +
@@ -160,7 +164,7 @@ public static class YouTubeBatchGenerator
                "    exit /b 1\r\n" +
                ")\r\n" +
                "echo ✓ ffmpeg ZIP downloaded >> \"%LOGFILE%\"\r\n" +
-               "echo [3/3] Extracting ffmpeg into %FFMPEG_DIR% ...\r\n" +
+               "echo [4/4] Extracting ffmpeg into %FFMPEG_DIR% ...\r\n" +
                "powershell -NoProfile -Command \"try { Expand-Archive -Path '%TEMP_ZIP%' -DestinationPath '%FFMPEG_DIR%' -Force } catch { Write-Host 'ERROR:' $_.Exception.Message; exit 1 }\"\r\n" +
                "if errorlevel 1 (\r\n" +
                "    echo ERROR: ffmpeg extraction failed. See %LOGFILE%\r\n" +

@@ -360,7 +360,7 @@ public class LandfallSettingsWindow : MonoBehaviour
         GUILayout.BeginHorizontal();
         GUILayout.FlexibleSpace();
         GUILayout.Label("READ WHAT IT DOES ON WORKSHOP PAGE", GUILayout.Height(18));
-
+        GUILayout.FlexibleSpace();
         GUILayout.EndHorizontal();
 
         GUILayout.EndVertical();
