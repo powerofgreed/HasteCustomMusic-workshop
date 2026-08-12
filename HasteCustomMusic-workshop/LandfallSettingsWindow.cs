@@ -17,6 +17,9 @@ public class LandfallSettingsWindow : MonoBehaviour
     private GUIStyle _headerStyle;
     private GUIStyle _sectionStyle;
     private GUIStyle _buttonStyle;
+    private bool _batRecreateInProgress = false;
+    private bool _batRecreateSuccess = false;
+    private string _batRecreateStatus = string.Empty;
     //dynamic resolution
     private float _uiScale = 1.0f;
     private Matrix4x4 _originalMatrix;
@@ -109,7 +112,7 @@ public class LandfallSettingsWindow : MonoBehaviour
         Cursor.lockState = _previousCursorLockState;
         _cursorStateForced = false;
 
-        if(LandfallConfig.CurrentConfig.ShowDebug) Debug.Log($"Restored cursor state - Visible: {_wasCursorVisible}, LockState: {_previousCursorLockState}");
+        if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log($"Restored cursor state - Visible: {_wasCursorVisible}, LockState: {_previousCursorLockState}");
     }
     public void ToggleVisibility()
     {
@@ -147,6 +150,7 @@ public class LandfallSettingsWindow : MonoBehaviour
         DrawHotkeysSection();
         DrawPlaybackSection();
         DrawLoaderSection();
+        DrawYoutubeSection();
         DrawDebugSection();
         GUILayout.EndScrollView();
 
@@ -270,9 +274,9 @@ public class LandfallSettingsWindow : MonoBehaviour
         GUILayout.BeginVertical(GUI.skin.box);
 
         // Local Music Path
-        GUILayout.Label("CustomMusic Path:",GUILayout.Height(20));
+        GUILayout.Label("CustomMusic Path:", GUILayout.Height(20));
         GUILayout.BeginHorizontal();
-        string newPath = GUILayout.TextField(LandfallConfig.CurrentConfig.LocalMusicPath, GUILayout.ExpandWidth(false),GUILayout.MaxWidth(450));
+        string newPath = GUILayout.TextField(LandfallConfig.CurrentConfig.LocalMusicPath, GUILayout.ExpandWidth(false), GUILayout.MaxWidth(450));
         if (newPath != LandfallConfig.CurrentConfig.LocalMusicPath)
         {
             LandfallConfig.CurrentConfig.LocalMusicPath = newPath;
@@ -312,6 +316,80 @@ public class LandfallSettingsWindow : MonoBehaviour
     }
 
 
+    void DrawYoutubeSection()
+    {
+        GUILayout.Label("YOUTUBE DOWNLOADER", _headerStyle);
+        GUILayout.BeginVertical(GUI.skin.box);
+
+        LandfallConfig.CurrentConfig.YoutubeEmbedThumbnail = GUILayout.Toggle(
+            LandfallConfig.CurrentConfig.YoutubeEmbedThumbnail,
+            "thumbnail as an image cover. (Takes longer for download)");
+
+        LandfallConfig.CurrentConfig.YoutubeUseCookies = GUILayout.Toggle(
+            LandfallConfig.CurrentConfig.YoutubeUseCookies,
+            "add --cookies cookies.txt");
+
+        GUILayout.Label("Generated flags:", GUILayout.Height(18));
+        GUILayout.TextField(GetYoutubeFlags(), GUILayout.ExpandWidth(false), GUILayout.MaxWidth(450));
+
+        GUILayout.Space(5);
+        GUILayout.BeginHorizontal();
+        GUI.enabled = !_batRecreateInProgress;
+        var recreateStyle = new GUIStyle(_buttonStyle);
+        if (!string.IsNullOrEmpty(_batRecreateStatus))
+        {
+            recreateStyle.normal.textColor = _batRecreateSuccess ? Color.green : Color.red;
+        }
+        if (GUILayout.Button("Recreate .bat files", recreateStyle, GUILayout.Height(30)))
+        {
+            RecreateBatFiles();
+        }
+        GUI.enabled = true;
+
+        if (GUILayout.Button("Open Folder", _buttonStyle, GUILayout.Height(30)))
+        {
+            Application.OpenURL($"file://{LandfallConfig.ConfigDirectory}");
+        }
+        GUILayout.EndHorizontal();
+
+        if (!string.IsNullOrEmpty(_batRecreateStatus))
+        {
+            GUILayout.Label(_batRecreateStatus, GUI.skin.label);
+        }
+
+        GUILayout.BeginHorizontal();
+        GUILayout.FlexibleSpace();
+        GUILayout.Label("READ WHAT IT DOES ON WORKSHOP PAGE", GUILayout.Height(18));
+
+        GUILayout.EndHorizontal();
+
+        GUILayout.EndVertical();
+        GUILayout.Space(10);
+    }
+
+    private string GetYoutubeFlags()
+    {
+        string flags = string.Empty;
+        if (LandfallConfig.CurrentConfig.YoutubeEmbedThumbnail)
+            flags += "--embed-thumbnail ";
+        if (LandfallConfig.CurrentConfig.YoutubeUseCookies)
+            flags += "--cookies cookies.txt ";
+        return flags.Trim();
+    }
+
+    private void RecreateBatFiles()
+    {
+        _batRecreateInProgress = true;
+        _batRecreateStatus = string.Empty;
+        _batRecreateSuccess = false;
+
+        string message;
+        bool result = YouTubeBatchGenerator.RecreateBatFiles(out message);
+        _batRecreateSuccess = result;
+        _batRecreateStatus = result ? "Batch files recreated successfully." : message;
+        _batRecreateInProgress = false;
+    }
+
     void DrawDebugSection()
     {
         GUILayout.Label("DEBUG", _headerStyle);
@@ -332,7 +410,7 @@ public class LandfallSettingsWindow : MonoBehaviour
         }
         GUILayout.EndHorizontal();
 
-        
+
         GUILayout.Space(10);
         GUILayout.Label("PLAYLIST MANAGEMENT:", _headerStyle);
 

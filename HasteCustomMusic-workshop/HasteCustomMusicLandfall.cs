@@ -1414,13 +1414,21 @@ public class MusicDisplayBehaviour : MonoBehaviour
 
         float contentHeight = displayOrder.Count * rowHeight;
 
-        scrollPos = GUI.BeginScrollView(
+        // BeginScrollView returns the updated scroll position
+        Vector2 newScrollPos = GUI.BeginScrollView(
             new Rect(x, y, width, height),
             scrollPos,
             new Rect(0, 0, width - 20, contentHeight),
             false,
             true
         );
+
+        // Update the stored scroll position
+        if (newScrollPos != scrollPos)
+        {
+            SetScroll(_viewingPlaylistType, newScrollPos);
+            scrollPos = newScrollPos;
+        }
 
         Event ev = Event.current;
 
@@ -1429,29 +1437,37 @@ public class MusicDisplayBehaviour : MonoBehaviour
         {
             if (ev.type == EventType.MouseDrag)
             {
-                // Compute insertion index: always after the hovered row (or at start if above first)
-                float mouseY = ev.mousePosition.y - y + scrollPos.y;
-                if (mouseY < 0)
-                    _dropDisplayIndex = 0;
+                // Mouse position is already relative to the scroll view content area.
+                float mouseY_content = ev.mousePosition.y;
+                int insertIndex;
+                if (mouseY_content < 0)
+                    insertIndex = 0;
+                else if (mouseY_content >= contentHeight)
+                    insertIndex = displayOrder.Count;
                 else
                 {
-                    int rowIndex = (int)(mouseY / rowHeight);
-                    _dropDisplayIndex = Mathf.Clamp(rowIndex + 1, 0, displayOrder.Count);
+                    int rowIndex = Mathf.Clamp((int)(mouseY_content / rowHeight), 0, displayOrder.Count - 1);
+                    float localY = mouseY_content - (rowIndex * rowHeight);
+                    insertIndex = rowIndex + (localY >= rowHeight * 0.5f ? 1 : 0);
+                    insertIndex = Mathf.Clamp(insertIndex, 0, displayOrder.Count);
                 }
-                GUI.changed = true;
+                if (insertIndex != _dropDisplayIndex)
+                {
+                    _dropDisplayIndex = insertIndex;
+                    GUI.changed = true;
+                }
                 ev.Use();
             }
             else if (ev.type == EventType.MouseUp && ev.button == 0)
             {
-                // Always perform drop (no cancellation)
+                // Perform drop if position changed
                 if (_draggedDisplayIndex != _dropDisplayIndex && _dropDisplayIndex >= 0 && _dropDisplayIndex <= displayOrder.Count)
                 {
                     int fromIndex = _draggedDisplayIndex;
                     int toIndex = _dropDisplayIndex;
-                    if (toIndex > fromIndex) toIndex--; // adjust because we removed the dragged item
+                    if (toIndex > fromIndex) toIndex--; // adjust because we remove the dragged item
                     ReorderPlaylist(_viewingPlaylistType, fromIndex, toIndex);
                 }
-
                 // Reset drag state
                 _draggedDisplayIndex = -1;
                 _dropDisplayIndex = -1;
@@ -1484,23 +1500,6 @@ public class MusicDisplayBehaviour : MonoBehaviour
             GUI.contentColor = isPlayingHere ? Color.yellow : Color.white;
             GUI.Label(trackRect, $"{displayIndex + 1}. {trackName}", _labelClipName);
 
-            // --- Drop indicator (green line) – drawn BEFORE the target row, which effectively means AFTER the previous row ---
-            if (_isDragging)
-            {
-                if (_dropDisplayIndex == displayIndex && displayIndex != _draggedDisplayIndex)
-                {
-                    // Line appears between row (displayIndex-1) and row (displayIndex)
-                    Rect lineRect = new Rect(0, displayIndex * rowHeight, width - 20, 2);
-                    GUI.DrawTexture(lineRect, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0, Color.green, 0, 0);
-                }
-                else if (_dropDisplayIndex == displayOrder.Count && displayIndex == displayOrder.Count - 1)
-                {
-                    // Line after the last row
-                    Rect lineRect = new Rect(0, (displayIndex + 1) * rowHeight, width - 20, 2);
-                    GUI.DrawTexture(lineRect, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0, Color.green, 0, 0);
-                }
-            }
-
             // --- MouseDown: potential drag start ---
             if (ev.type == EventType.MouseDown && ev.button == 0 && trackRect.Contains(ev.mousePosition))
             {
@@ -1510,6 +1509,13 @@ public class MusicDisplayBehaviour : MonoBehaviour
                 _dragStartMousePos = ev.mousePosition;
                 ev.Use();
             }
+        }
+
+        // --- Draw the green drop line at the current insertion point ---
+        if (_isDragging && _dropDisplayIndex >= 0 && _dropDisplayIndex <= displayOrder.Count)
+        {
+            Rect lineRect = new Rect(0, _dropDisplayIndex * rowHeight, width - 20, 2);
+            GUI.DrawTexture(lineRect, Texture2D.whiteTexture, ScaleMode.StretchToFill, true, 0, Color.green, 0, 0);
         }
 
         GUI.contentColor = Color.white;
@@ -1534,15 +1540,21 @@ public class MusicDisplayBehaviour : MonoBehaviour
             {
                 _isDragging = true;
                 _potentialDrag = false;
-                // Set initial drop insertion index
-                float mouseY = ev.mousePosition.y - y + scrollPos.y;
-                if (mouseY < 0)
-                    _dropDisplayIndex = 0;
+                // Set initial insertion index
+                float mouseY_content = ev.mousePosition.y;
+                int insertIndex;
+                if (mouseY_content < 0)
+                    insertIndex = 0;
+                else if (mouseY_content >= contentHeight)
+                    insertIndex = displayOrder.Count;
                 else
                 {
-                    int rowIndex = (int)(mouseY / rowHeight);
-                    _dropDisplayIndex = Mathf.Clamp(rowIndex + 1, 0, displayOrder.Count);
+                    int rowIndex = Mathf.Clamp((int)(mouseY_content / rowHeight), 0, displayOrder.Count - 1);
+                    float localY = mouseY_content - (rowIndex * rowHeight);
+                    insertIndex = rowIndex + (localY >= rowHeight * 0.5f ? 1 : 0);
+                    insertIndex = Mathf.Clamp(insertIndex, 0, displayOrder.Count);
                 }
+                _dropDisplayIndex = insertIndex;
                 ev.Use();
                 GUI.changed = true;
             }
@@ -1557,8 +1569,6 @@ public class MusicDisplayBehaviour : MonoBehaviour
             _lastClickedTrack = -1;
             _singleClickExpireAt = 0f;
         }
-
-        SetScroll(_viewingPlaylistType, scrollPos);
     }
 
     private void ProcessClick(List<int> displayOrder)

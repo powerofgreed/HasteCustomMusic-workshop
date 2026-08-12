@@ -32,6 +32,10 @@ public static class LandfallConfig
         // Debug
         public bool ShowDebug = false;
 
+        // YouTube downloader
+        public bool YoutubeEmbedThumbnail = false;
+        public bool YoutubeUseCookies = false;
+
         // UI
         public bool PlaylistWindowVisible = true;
         public float PlaylistWindowHeight = 160f;
