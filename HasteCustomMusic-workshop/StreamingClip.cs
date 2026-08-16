@@ -1681,13 +1681,13 @@ public class StreamingClip : MonoBehaviour
     {
         if (_stream == 0)
         {
-            Debug.Log("[StreamingClip] TryExtractPictures: stream handle is 0, skipping.");
+            if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log("[StreamingClip] TryExtractPictures: stream handle is 0, skipping.");
             return;
         }
 
         try
         {
-            Debug.Log("[StreamingClip] TryExtractPictures: searching for pictures...");
+            if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log("[StreamingClip] TryExtractPictures: searching for pictures...");
 
             // 1. Try TagReader (often works for MP3 with PNG covers)
             var tagReader = TagReader.Read(_stream);
@@ -1696,7 +1696,7 @@ public class StreamingClip : MonoBehaviour
                 byte[] picData = tagReader.Pictures[0].Data;
                 if (picData != null && picData.Length > 0)
                 {
-                    Debug.Log($"[StreamingClip] Found picture via TagReader ({picData.Length} bytes)");
+                    if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log($"[StreamingClip] Found picture via TagReader ({picData.Length} bytes)");
                     byte[] copy = new byte[picData.Length];
                     Array.Copy(picData, copy, picData.Length);
                     MainThreadInvoke(() => OnPictureChanged?.Invoke(_currentPath, copy));
@@ -1717,23 +1717,23 @@ public class StreamingClip : MonoBehaviour
 
             if (id3v2Ptr == IntPtr.Zero)
             {
-                Debug.Log("[StreamingClip] No ID3v2 pointer found.");
+                if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log("[StreamingClip] No ID3v2 pointer found.");
             }
             else
             {
-                Debug.Log("[StreamingClip] Got ID3v2 pointer, parsing...");
+                if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log("[StreamingClip] Got ID3v2 pointer, parsing...");
                 try
                 {
                     var id3v2 = new ID3v2Tag(id3v2Ptr);
-                    Debug.Log($"[StreamingClip] ID3v2 TextFrames count: {id3v2.TextFrames?.Count ?? 0}");
-                    Debug.Log($"[StreamingClip] ID3v2 PictureFrames count: {id3v2.PictureFrames?.Count ?? 0}");
+                    if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log($"[StreamingClip] ID3v2 TextFrames count: {id3v2.TextFrames?.Count ?? 0}");
+                    if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log($"[StreamingClip] ID3v2 PictureFrames count: {id3v2.PictureFrames?.Count ?? 0}");
 
                     if (id3v2.PictureFrames != null && id3v2.PictureFrames.Count > 0)
                     {
                         byte[] picData = id3v2.PictureFrames[0].Data;
                         if (picData != null && picData.Length > 0)
                         {
-                            Debug.Log($"[StreamingClip] Found picture via ID3v2 ({picData.Length} bytes)");
+                            if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log($"[StreamingClip] Found picture via ID3v2 ({picData.Length} bytes)");
                             byte[] copy = new byte[picData.Length];
                             Array.Copy(picData, copy, picData.Length);
                             MainThreadInvoke(() => OnPictureChanged?.Invoke(_currentPath, copy));
@@ -1759,7 +1759,7 @@ public class StreamingClip : MonoBehaviour
                             if (selected == null)
                                 selected = manualPictures[0];
 
-                            Debug.Log($"[StreamingClip] Selected picture type {selected.PictureType}, MIME {selected.MimeType}, size {selected.Data.Length}");
+                            if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log($"[StreamingClip] Selected picture type {selected.PictureType}, MIME {selected.MimeType}, size {selected.Data.Length}");
                             MainThreadInvoke(() => OnPictureChanged?.Invoke(_currentPath, selected.Data));
                             return;
                         }
@@ -1767,15 +1767,15 @@ public class StreamingClip : MonoBehaviour
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogWarning($"[StreamingClip] Error parsing ID3v2: {ex.Message}");
+                     Debug.LogWarning($"[StreamingClip] Error parsing ID3v2: {ex.Message}");
                 }
             }
 
-            Debug.Log("[StreamingClip] TryExtractPictures: no picture found.");
+            if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log("[StreamingClip] TryExtractPictures: no picture found.");
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"[StreamingClip] Picture extraction error: {ex.Message}");
+             Debug.LogWarning($"[StreamingClip] Picture extraction error: {ex.Message}");
         }
     }
 

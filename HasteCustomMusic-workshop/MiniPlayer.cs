@@ -285,7 +285,12 @@ public class MiniPlayerManager : MonoBehaviour
             OnNewTrackStarted(currentPath);
 
         // Update text fields
-        MiniPlayer.SetTrackName(Truncate(sc.PublicTrackTitle ?? string.Empty, 50));
+        string title = StreamingClip.CurrentStreamTitle;
+        if (string.IsNullOrWhiteSpace(title))
+            title = sc.PublicTrackTitle; 
+
+        if (!string.IsNullOrWhiteSpace(title))
+            MiniPlayer.SetTrackName(Truncate(title, 50));
         MiniPlayer.SetArtist(StreamingClip.CurrentStreamArtist ?? string.Empty);
         MiniPlayer.SetAlbum(StreamingClip.CurrentStreamAlbum ?? string.Empty);
 
@@ -608,7 +613,7 @@ public static class MiniPlayer
         _albumText.characterSpacing = -0.5f;
         _albumText.enableAutoSizing = true;
         _albumText.fontSizeMin = 14;
-        _albumText.fontSizeMax = 26;
+        _albumText.fontSizeMax = 36;
 
         _nameText = CreateText(
             parent: bgGO.transform,
@@ -622,8 +627,8 @@ public static class MiniPlayer
         );
         _nameText.characterSpacing = -0.5f;
         _nameText.enableAutoSizing = true;
-        _nameText.fontSizeMin = 10;
-        _nameText.fontSizeMax = 20;
+        _nameText.fontSizeMin = 12;
+        _nameText.fontSizeMax = 30;
 
         _artistText = CreateText(
             parent: _nameText.transform,
@@ -638,7 +643,7 @@ public static class MiniPlayer
         _artistText.characterSpacing = -0.5f;
         _artistText.enableAutoSizing = true;
         _artistText.fontSizeMin = 10;
-        _artistText.fontSizeMax = 18;
+        _artistText.fontSizeMax = 26;
 
         _timeText = CreateText(
             parent: bgGO.transform,
