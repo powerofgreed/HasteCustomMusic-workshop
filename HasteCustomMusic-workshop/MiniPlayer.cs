@@ -31,6 +31,7 @@ public class MiniPlayerManager : MonoBehaviour
     private Coroutine _popupAnimationCoroutine;
     private bool _popupAnimationActive = false;
     private bool _popupEnabled = false;
+    private string _lastRadioTitle = string.Empty;
 
     private void OnEnable()
     {
@@ -287,15 +288,28 @@ public class MiniPlayerManager : MonoBehaviour
         // Update text fields
         string title = StreamingClip.CurrentStreamTitle;
         if (string.IsNullOrWhiteSpace(title))
-            title = sc.PublicTrackTitle; 
-
+            title = sc.PublicTrackTitle;
+        bool isRadioStream = (StreamingClip.CurrentPlaybackMode == MusicPlayerMode.RadioStream);
+        if (isRadioStream)
+        {
+            if (!string.IsNullOrWhiteSpace(title) && title != _lastRadioTitle)
+            {
+                _lastRadioTitle = title;
+                if (_popupEnabled)
+                    TriggerPopupSlideIn();
+            }
+        }
+        else
+        {
+            _lastRadioTitle = string.Empty; 
+        }
         if (!string.IsNullOrWhiteSpace(title))
             MiniPlayer.SetTrackName(Truncate(title, 50));
         MiniPlayer.SetArtist(StreamingClip.CurrentStreamArtist ?? string.Empty);
         MiniPlayer.SetAlbum(StreamingClip.CurrentStreamAlbum ?? string.Empty);
 
         // Time and progress
-        bool isRadioStream = (StreamingClip.CurrentPlaybackMode == MusicPlayerMode.RadioStream);
+
         float currentTime = CustomMusicManagerExtensions.GetStreamCurrentTime();
         float totalTime = CustomMusicManagerExtensions.GetStreamTotalTime();
 
