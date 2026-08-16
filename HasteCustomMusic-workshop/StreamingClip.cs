@@ -35,6 +35,7 @@ public class StreamingClip : MonoBehaviour
 
     // --- Public state & events ---
     public static event Action<string> OnTitleChanged;
+    public static event Action<string, byte[]> OnPictureChanged;
     public volatile string PublicTrackTitle;
     public string LastKnownTitle => PublicTrackTitle;
 
@@ -54,6 +55,7 @@ public class StreamingClip : MonoBehaviour
     private AudioClip _clip;
     private AudioSource _source;
     private string _currentPath;
+    public string CurrentPath => _currentPath;
     private float _lastMetaCheck = 0f;
 
     // prescan/watch
@@ -85,6 +87,9 @@ public class StreamingClip : MonoBehaviour
 
     // public toggle used elsewhere
     public static bool TreatInputAsPlaylist { get; set; } = false;
+    public static string CurrentStreamTitle { get; private set; }
+    public static string CurrentStreamArtist { get; private set; }
+    public static string CurrentStreamAlbum { get; private set; }
 
     // --- Unity lifecycle ---
     private void Awake()
@@ -98,10 +103,10 @@ public class StreamingClip : MonoBehaviour
         DrainMainThreadQueue();
         PollForLengthChange();
 
-        if (Time.realtimeSinceStartup - _lastMetaCheck > 0.5f)
+        if (Time.realtimeSinceStartup - _lastMetaCheck > 1.0f)
         {
             _lastMetaCheck = Time.realtimeSinceStartup;
-            UpdateMetadata(false);
+            UpdateMetadata(false);   
         }
 
         if (_stream != 0 && IsPlaying)
@@ -151,7 +156,11 @@ public class StreamingClip : MonoBehaviour
         _hasRecordedRealLength = false;
         _hasRealLength = false;
         _isFullyDownloaded = false;
+        CurrentStreamTitle = null;
+        CurrentStreamArtist = null;
+        CurrentStreamAlbum = null;
         PublicTrackTitle = null;
+        TryEmitFlacPicture(path);
 
         Task.Run(async () =>
         {
@@ -244,6 +253,9 @@ public class StreamingClip : MonoBehaviour
         if (_stream != 0) { try { Bass.StreamFree(_stream); } catch { } _stream = 0; }
         if (_clip != null) { try { Destroy(_clip); } catch { } _clip = null; }
         PublicTrackTitle = null;
+        CurrentStreamTitle = null;
+        CurrentStreamArtist = null;
+        CurrentStreamAlbum = null;
         _hasRealLength = false;
         _isFullyDownloaded = false;
     }
@@ -662,10 +674,8 @@ public class StreamingClip : MonoBehaviour
             DebugDumpHeadTags(_stream);
         }
 
-        if (read.IsRadio)
-        {
-            UpdateMetadata(force: true);
-        }
+        UpdateMetadata(force: true);
+        TryExtractPictures();
     }
 
     private int GetClipFramesForStreamUsingRead(ReadResult read, int stream, int deviceRate)
@@ -980,8 +990,6 @@ public class StreamingClip : MonoBehaviour
     private void UpdateMetadata(bool force = false)
     {
         if (_stream == 0) return;
-        if (!force && Time.realtimeSinceStartup - _lastMetaCheck < 1.0f) return;
-        _lastMetaCheck = Time.realtimeSinceStartup;
 
         try
         {
@@ -1006,6 +1014,9 @@ public class StreamingClip : MonoBehaviour
                             // For ICY streams, emit immediately and return
                             if (!string.IsNullOrEmpty(newTitle) && !IsNoiseTitle(newTitle))
                             {
+                                CurrentStreamTitle = newTitle;
+                                CurrentStreamArtist = null;
+                                CurrentStreamAlbum = null;
                                 SetClipTitle(newTitle, sourceIsStream: true);
                             }
                             return; // ICY takes precedence, no need to check other sources
@@ -1019,7 +1030,26 @@ public class StreamingClip : MonoBehaviour
             // or if forced and we might have better metadata now
             if (string.IsNullOrEmpty(PublicTrackTitle) || force)
             {
-                // 2. Try ID3v2 tags using ManagedBass ID3v2Tag class
+                // 2. Fall back to TagReader for other tag formats
+                if (string.IsNullOrEmpty(newTitle))
+                {
+                    try
+                    {
+                        var tr = TagReader.Read(_stream);
+                        if (tr != null)
+                        {
+                            CurrentStreamTitle = tr.Title;
+                            CurrentStreamArtist = tr.Artist;
+                            CurrentStreamAlbum = tr.Album;
+                            string combined = string.IsNullOrWhiteSpace(tr.Artist) ? tr.Title : $"{tr.Artist} - {tr.Title}";
+                            SetClipTitle(combined, sourceIsStream: true);
+                        }
+
+                    }
+                    catch { }
+                }
+
+                // 3. Try ID3v2 tags using ManagedBass ID3v2Tag class
                 if (string.IsNullOrEmpty(newTitle))
                 {
                     try
@@ -1027,21 +1057,23 @@ public class StreamingClip : MonoBehaviour
                         var id3v2 = new ID3v2Tag(_stream);
                         if (id3v2.TextFrames != null && id3v2.TextFrames.Count > 0)
                         {
-                            string artist = null;
+                            string title = null, artist = null, album = null;
+                            id3v2.TextFrames.TryGetValue("TIT2", out title);
+                            id3v2.TextFrames.TryGetValue("TPE1", out artist);
+                            id3v2.TextFrames.TryGetValue("TALB", out album);
 
-                            if (id3v2.TextFrames.TryGetValue("TIT2", out string title) ||  // Title
-                                id3v2.TextFrames.TryGetValue("TT2", out title))     // Legacy title frame
+                            // If legacy frames are present, fallback
+                            if (string.IsNullOrWhiteSpace(title)) id3v2.TextFrames.TryGetValue("TT2", out title);
+                            if (string.IsNullOrWhiteSpace(artist)) id3v2.TextFrames.TryGetValue("TP1", out artist);
+                            if (string.IsNullOrWhiteSpace(album)) id3v2.TextFrames.TryGetValue("TAL", out album);
+
+                            if (!string.IsNullOrWhiteSpace(title))
                             {
-                                id3v2.TextFrames.TryGetValue("TPE1", out artist);  // Lead performer
-                                id3v2.TextFrames.TryGetValue("TP1", out artist);   // Legacy artist frame
-
-                                if (!string.IsNullOrWhiteSpace(title))
-                                {
-                                    newTitle = string.IsNullOrWhiteSpace(artist)
-                                        ? title.Trim()
-                                        : $"{artist.Trim()} - {title.Trim()}";
-                                    titleFromStream = true;
-                                }
+                                CurrentStreamTitle = title;
+                                CurrentStreamArtist = artist;
+                                CurrentStreamAlbum = album;
+                                string combined = string.IsNullOrWhiteSpace(artist) ? title.Trim() : $"{artist.Trim()} - {title.Trim()}";
+                                SetClipTitle(combined, sourceIsStream: true);
                             }
                         }
                     }
@@ -1051,31 +1083,6 @@ public class StreamingClip : MonoBehaviour
                         if (force && LandfallConfig.CurrentConfig.ShowDebug)
                             Debug.Log($"[StreamingClip] No ID3v2 tags or parsing failed: {ex.Message}");
                     }
-                }
-
-                // 3. Fall back to TagReader for other tag formats
-                if (string.IsNullOrEmpty(newTitle))
-                {
-                    try
-                    {
-                        var tr = TagReader.Read(_stream);
-                        if (tr != null)
-                        {
-                            if (!string.IsNullOrWhiteSpace(tr.Title))
-                            {
-                                newTitle = string.IsNullOrWhiteSpace(tr.Artist)
-                                    ? tr.Title
-                                    : $"{tr.Artist} - {tr.Title}";
-                                titleFromStream = true;
-                            }
-                            else if (tr.Other != null && tr.Other.TryGetValue("TITLE", out var otitle))
-                            {
-                                newTitle = otitle;
-                                titleFromStream = true;
-                            }
-                        }
-                    }
-                    catch { }
                 }
 
                 if (!string.IsNullOrEmpty(newTitle) && !IsNoiseTitle(newTitle))
@@ -1540,6 +1547,369 @@ public class StreamingClip : MonoBehaviour
             return "Streaming…";
         }
         catch { return "Unknown"; }
+    }
+    /// <summary>
+    /// Reads a FLAC file and extracts the first embedded picture (cover art).
+    /// Returns null if no picture is found or if the file is not a valid FLAC file.
+    /// </summary>
+    private static byte[] ExtractFlacPicture(string filePath)
+    {
+        try
+        {
+            using (var fs = File.OpenRead(filePath))
+            {
+                // Read first 4 bytes to check for ID3v2 header (some FLAC files may have it)
+                byte[] magic = new byte[4];
+                int read = fs.Read(magic, 0, 4);
+                if (read < 4) return null;
+
+                // Skip ID3v2 if present
+                if (magic[0] == 'I' && magic[1] == 'D' && magic[2] == '3')
+                {
+                    // ID3v2 header: 10 bytes, size is syncsafe in bytes 6-9
+                    byte[] id3Header = new byte[6]; // read bytes 4-9
+                    fs.Read(id3Header, 0, 6);
+                    int id3Size = ((id3Header[2] & 0x7F) << 21) | ((id3Header[3] & 0x7F) << 14) |
+                                  ((id3Header[4] & 0x7F) << 7) | (id3Header[5] & 0x7F);
+                    fs.Seek(id3Size, SeekOrigin.Current);
+                    // Now read the real FLAC magic
+                    read = fs.Read(magic, 0, 4);
+                    if (read < 4) return null;
+                }
+
+                // Verify FLAC magic
+                if (magic[0] != 'f' || magic[1] != 'L' || magic[2] != 'a' || magic[3] != 'C')
+                    return null;
+
+                // Loop through metadata blocks
+                bool lastBlock = false;
+                while (!lastBlock)
+                {
+                    int blockHeader = fs.ReadByte();
+                    if (blockHeader < 0) return null;
+                    lastBlock = (blockHeader & 0x80) != 0;
+                    int blockType = blockHeader & 0x7F;
+                    int length = ReadBigEndian24(fs);
+                    if (length < 0) return null;
+
+                    if (blockType == 6) // METADATA_BLOCK_PICTURE
+                    {
+                        Debug.Log("[StreamingClip] Found FLAC picture block of length " + length);
+
+                        byte[] blockData = new byte[length];
+                        fs.Read(blockData, 0, length);
+                        return ParseFlacPictureBlock(blockData);
+                    }
+                    else
+                    {
+                        fs.Seek(length, SeekOrigin.Current);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"[StreamingClip] FLAC picture extraction error: {ex.Message}");
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Reads a 3-byte big-endian integer from the stream.
+    /// </summary>
+    private static int ReadBigEndian24(FileStream fs)
+    {
+        byte[] buf = new byte[3];
+        if (fs.Read(buf, 0, 3) != 3) return -1;
+        return (buf[0] << 16) | (buf[1] << 8) | buf[2];
+    }
+
+    /// <summary>
+    /// Parses a FLAC METADATA_BLOCK_PICTURE and extracts the embedded image data.
+    /// </summary>
+    private static byte[] ParseFlacPictureBlock(byte[] block)
+    {
+        if (block.Length < 32) return null; // minimum size for a valid block
+
+        int pos = 4; // skip picture type (4 bytes)
+        int mimeLen = ReadBigEndian32(block, pos); pos += 4;
+        pos += mimeLen; // skip MIME type
+        int descLen = ReadBigEndian32(block, pos); pos += 4;
+        pos += descLen; // skip description
+        pos += 16;      // skip width, height, color depth, number of colors
+        int dataLen = ReadBigEndian32(block, pos); pos += 4;
+
+        if (dataLen <= 0 || pos + dataLen > block.Length) return null;
+
+        byte[] pictureData = new byte[dataLen];
+        Array.Copy(block, pos, pictureData, 0, dataLen);
+        return pictureData;
+    }
+
+    /// <summary>
+    /// Reads a 4-byte big-endian integer from a byte array.
+    /// </summary>
+    private static int ReadBigEndian32(byte[] buffer, int offset)
+    {
+        return (buffer[offset] << 24) | (buffer[offset + 1] << 16) | (buffer[offset + 2] << 8) | buffer[offset + 3];
+    }
+
+    /// <summary>
+    /// Starts background extraction and raises OnPictureChanged if a picture is found.
+    /// </summary>
+    private void TryEmitFlacPicture(string filePath)
+    {
+        if (string.IsNullOrEmpty(filePath) || !filePath.EndsWith(".flac", StringComparison.OrdinalIgnoreCase))
+            return;
+
+        Task.Run(() =>
+        {
+            byte[] pictureData = ExtractFlacPicture(filePath);
+            if (pictureData != null && pictureData.Length > 0)
+            {
+                string path = filePath; 
+                MainThreadInvoke(() => OnPictureChanged?.Invoke(path, pictureData));
+            }
+            else
+            {
+                if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log("[StreamingClip] FLAC picture extraction returned null for: " + filePath);
+            }
+        });
+    }
+
+    private void TryExtractPictures()
+    {
+        if (_stream == 0)
+        {
+            Debug.Log("[StreamingClip] TryExtractPictures: stream handle is 0, skipping.");
+            return;
+        }
+
+        try
+        {
+            Debug.Log("[StreamingClip] TryExtractPictures: searching for pictures...");
+
+            // 1. Try TagReader (often works for MP3 with PNG covers)
+            var tagReader = TagReader.Read(_stream);
+            if (tagReader != null && tagReader.Pictures != null && tagReader.Pictures.Count > 0)
+            {
+                byte[] picData = tagReader.Pictures[0].Data;
+                if (picData != null && picData.Length > 0)
+                {
+                    Debug.Log($"[StreamingClip] Found picture via TagReader ({picData.Length} bytes)");
+                    byte[] copy = new byte[picData.Length];
+                    Array.Copy(picData, copy, picData.Length);
+                    MainThreadInvoke(() => OnPictureChanged?.Invoke(_currentPath, copy));
+                    return;
+                }
+            }
+
+            // 2. Try ID3v2Tag using the native pointer
+            IntPtr id3v2Ptr = IntPtr.Zero;
+            try
+            {
+                id3v2Ptr = Bass.ChannelGetTags(_stream, TagType.ID3v2);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[StreamingClip] ChannelGetTags ID3v2 error: {ex.Message}");
+            }
+
+            if (id3v2Ptr == IntPtr.Zero)
+            {
+                Debug.Log("[StreamingClip] No ID3v2 pointer found.");
+            }
+            else
+            {
+                Debug.Log("[StreamingClip] Got ID3v2 pointer, parsing...");
+                try
+                {
+                    var id3v2 = new ID3v2Tag(id3v2Ptr);
+                    Debug.Log($"[StreamingClip] ID3v2 TextFrames count: {id3v2.TextFrames?.Count ?? 0}");
+                    Debug.Log($"[StreamingClip] ID3v2 PictureFrames count: {id3v2.PictureFrames?.Count ?? 0}");
+
+                    if (id3v2.PictureFrames != null && id3v2.PictureFrames.Count > 0)
+                    {
+                        byte[] picData = id3v2.PictureFrames[0].Data;
+                        if (picData != null && picData.Length > 0)
+                        {
+                            Debug.Log($"[StreamingClip] Found picture via ID3v2 ({picData.Length} bytes)");
+                            byte[] copy = new byte[picData.Length];
+                            Array.Copy(picData, copy, picData.Length);
+                            MainThreadInvoke(() => OnPictureChanged?.Invoke(_currentPath, copy));
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        Debug.Log("[StreamingClip] ID3v2 PictureFrames is empty. Trying manual APIC parse...");
+                        var manualPictures = ExtractPictureTagsFromID3v2(id3v2Ptr);
+                        if (manualPictures.Count > 0)
+                        {
+                            // Prefer FrontCover, otherwise first
+                            PictureTag selected = null;
+                            foreach (var pic in manualPictures)
+                            {
+                                if (pic.PictureType == PictureTypes.FrontCover)
+                                {
+                                    selected = pic;
+                                    break;
+                                }
+                            }
+                            if (selected == null)
+                                selected = manualPictures[0];
+
+                            Debug.Log($"[StreamingClip] Selected picture type {selected.PictureType}, MIME {selected.MimeType}, size {selected.Data.Length}");
+                            MainThreadInvoke(() => OnPictureChanged?.Invoke(_currentPath, selected.Data));
+                            return;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"[StreamingClip] Error parsing ID3v2: {ex.Message}");
+                }
+            }
+
+            Debug.Log("[StreamingClip] TryExtractPictures: no picture found.");
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"[StreamingClip] Picture extraction error: {ex.Message}");
+        }
+    }
+
+    private List<PictureTag> ExtractPictureTagsFromID3v2(IntPtr id3v2Ptr)
+    {
+        var pictures = new List<PictureTag>();
+
+        try
+        {
+            // Read ID3v2 header
+            byte[] header = new byte[10];
+            Marshal.Copy(id3v2Ptr, header, 0, 10);
+
+            if (header[0] != 'I' || header[1] != 'D' || header[2] != '3')
+                return pictures;
+
+            int version = header[3];
+            int flags = header[5];
+            int size = (header[6] & 0x7F) << 21 | (header[7] & 0x7F) << 14 | (header[8] & 0x7F) << 7 | (header[9] & 0x7F);
+            int offset = 10; // start of frames
+
+            // Skip extended header if present
+            if ((flags & 0x40) != 0)
+            {
+                if (version == 4)
+                {
+                    byte[] extSizeBytes = new byte[4];
+                    Marshal.Copy(id3v2Ptr + offset, extSizeBytes, 0, 4);
+                    int extSize = (extSizeBytes[0] & 0x7F) << 21 | (extSizeBytes[1] & 0x7F) << 14 | (extSizeBytes[2] & 0x7F) << 7 | (extSizeBytes[3] & 0x7F);
+                    offset += extSize;
+                }
+                else
+                {
+                    offset += 4;
+                }
+            }
+
+            while (offset < size - 10)
+            {
+                byte[] frameHeader = new byte[10];
+                Marshal.Copy(id3v2Ptr + offset, frameHeader, 0, 10);
+                string frameId = System.Text.Encoding.ASCII.GetString(frameHeader, 0, 4);
+
+                int frameSize;
+                if (version == 4)
+                {
+                    frameSize = (frameHeader[4] & 0x7F) << 21 | (frameHeader[5] & 0x7F) << 14 | (frameHeader[6] & 0x7F) << 7 | (frameHeader[7] & 0x7F);
+                }
+                else
+                {
+                    frameSize = (frameHeader[4] << 24) | (frameHeader[5] << 16) | (frameHeader[6] << 8) | frameHeader[7];
+                }
+
+                if (frameSize <= 0 || frameSize > size - offset)
+                    break;
+
+                if (frameId == "APIC")
+                {
+                    int dataOffset = offset + 10;
+                    int pos = dataOffset;
+
+                    // Encoding
+                    byte encoding = Marshal.ReadByte(id3v2Ptr + pos);
+                    pos++;
+
+                    // MIME type (null-terminated)
+                    var mimeBytes = new List<byte>();
+                    while (pos < offset + 10 + frameSize && Marshal.ReadByte(id3v2Ptr + pos) != 0)
+                    {
+                        mimeBytes.Add(Marshal.ReadByte(id3v2Ptr + pos));
+                        pos++;
+                    }
+                    pos++; // skip null terminator
+                    string mimeType = System.Text.Encoding.ASCII.GetString(mimeBytes.ToArray());
+
+                    // Picture type (1 byte)
+                    byte pictureTypeValue = Marshal.ReadByte(id3v2Ptr + pos);
+                    pos++;
+                    PictureTypes pictureType = (PictureTypes)pictureTypeValue;
+
+                    // Description (null-terminated, encoded according to encoding; we skip it)
+                    if (encoding == 0) // ASCII
+                    {
+                        while (pos < offset + 10 + frameSize && Marshal.ReadByte(id3v2Ptr + pos) != 0)
+                            pos++;
+                        pos++;
+                    }
+                    else if (encoding == 1) // UTF-16 with BOM, null terminator is 2 bytes
+                    {
+                        while (pos + 1 < offset + 10 + frameSize)
+                        {
+                            byte b1 = Marshal.ReadByte(id3v2Ptr + pos);
+                            byte b2 = Marshal.ReadByte(id3v2Ptr + pos + 1);
+                            if (b1 == 0 && b2 == 0) { pos += 2; break; }
+                            pos += 2;
+                        }
+                    }
+                    else // UTF-8 or UTF-16BE, we'll just skip until a null byte (not perfect but works)
+                    {
+                        while (pos < offset + 10 + frameSize && Marshal.ReadByte(id3v2Ptr + pos) != 0)
+                            pos++;
+                        pos++;
+                    }
+
+                    // Image data
+                    int imageStart = pos;
+                    int imageSize = frameSize - (imageStart - dataOffset);
+                    if (imageSize <= 0)
+                    {
+                        offset += 10 + frameSize;
+                        continue;
+                    }
+
+                    byte[] imageData = new byte[imageSize];
+                    Marshal.Copy(id3v2Ptr + imageStart, imageData, 0, imageSize);
+
+                    var pictureTag = new PictureTag
+                    {
+                        MimeType = mimeType,
+                        PictureType = pictureType,
+                        Data = imageData
+                    };
+                    pictures.Add(pictureTag);
+                }
+
+                offset += 10 + frameSize;
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning($"[StreamingClip] ExtractPictureTagsFromID3v2 error: {ex.Message}");
+        }
+
+        return pictures;
     }
 
     private static string SafePtrToAnsi(IntPtr p) => p == IntPtr.Zero ? null : Marshal.PtrToStringAnsi(p);

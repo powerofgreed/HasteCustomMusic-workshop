@@ -31,6 +31,7 @@
     <PackageReference Include="ManagedBass.Mix" Version="4.0.2" />	  <PackageReference Include="ManagedBass" Version="4.0.2" />
 	  <PackageReference Include="ManagedBass.Hls" Version="4.0.2" />
 	  <PackageReference Include="ManagedBass.Opus" Version="4.0.2" />
+	  <PackageReference Include="ManagedBass.Tags" Version="4.0.2" />
 	  
   </ItemGroup>
 

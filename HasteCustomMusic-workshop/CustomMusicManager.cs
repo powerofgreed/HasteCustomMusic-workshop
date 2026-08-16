@@ -309,6 +309,11 @@ public class CustomMusicManager : MonoBehaviour
             }
 
             CreateLocalPlaylistFromTracks();
+            if (PlaylistManager.GetPlaylist(PlaylistType.Local) is BasePlaylist localPlaylist)
+            {
+                localPlaylist.ResetShuffle();
+                localPlaylist.CurrentTrackIndex = 0;
+            }
             CurrentTrackIndex = 0;
             OnTracksLoaded?.Invoke();
 

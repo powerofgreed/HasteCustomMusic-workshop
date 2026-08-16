@@ -44,7 +44,6 @@ public static class HasteCustomMusicLandfall
         if (!ManagedBassLoader.Initialize())
         {
             Debug.LogError("BASS initialization failed! Audio features will be disabled.");
-            // Don't return - let other features work without audio
         }
 
         // Initialize config system
@@ -64,11 +63,50 @@ public static class HasteCustomMusicLandfall
         Object.DontDestroyOnLoad(settingsObject);
         _settingsWindow = settingsObject.AddComponent<LandfallSettingsWindow>();
 
+        // Create MiniPlayer UI
+        EnsureIconFile();
+        MiniPlayer.Create();
+        var managerObj = new GameObject("HasteCustomMusicMiniPlayerManager");
+        Object.DontDestroyOnLoad(managerObj);
+        managerObj.AddComponent<MiniPlayerManager>();
+
         Debug.Log("HasteCustomMusic: Landfall version initialized successfully!");
+
+
+    }
+    private static void EnsureIconFile()
+    {
+        try
+        {
+            string configDir = LandfallConfig.ConfigDirectory;
+            if (string.IsNullOrEmpty(configDir))
+                return;
+
+            Directory.CreateDirectory(configDir);
+            string dest = Path.Combine(configDir, "ICON.png");
+            if (!File.Exists(dest))
+            {
+                string src = Path.Combine(WorkshopHelper.ModDirectory, "ICON.png");
+                if (File.Exists(src))
+                {
+                    File.Copy(src, dest, false);
+                    Debug.Log("Icon file copied to config directory.");
+                }
+                else
+                {
+                    Debug.LogWarning("Source ICON.png not found in mod directory.");
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            Debug.LogWarning($"Failed to ensure ICON.png: {e.Message}");
+        }
     }
 }
 public class MusicDisplayBehaviour : MonoBehaviour
 {
+    public static MusicDisplayBehaviour Instance { get; private set; }
 
     private bool _showGUI = true;
     private bool StyleInitialized = false;
@@ -195,6 +233,36 @@ public class MusicDisplayBehaviour : MonoBehaviour
         return Vector2.zero;
     }
 
+    private static void EnsureIconFile()
+    {
+        try
+        {
+            string configDir = LandfallConfig.ConfigDirectory;
+            if (string.IsNullOrEmpty(configDir))
+                return;
+
+            Directory.CreateDirectory(configDir);
+            string dest = Path.Combine(configDir, "ICON.png");
+            if (!File.Exists(dest))
+            {
+                string src = Path.Combine(WorkshopHelper.ModDirectory, "ICON.png");
+                if (File.Exists(src))
+                {
+                    File.Copy(src, dest, false);
+                    Debug.Log("Icon file copied to config directory.");
+                }
+                else
+                {
+                    Debug.LogWarning("Source ICON.png not found in mod directory.");
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            Debug.LogWarning($"Failed to ensure ICON.png: {e.Message}");
+        }
+    }
+
     private void SetScroll(PlaylistType type, Vector2 pos)
     {
         _playlistScrollPositions[type] = pos;
@@ -202,6 +270,7 @@ public class MusicDisplayBehaviour : MonoBehaviour
 
     void Awake()
     {
+        Instance = this;
         _backgroundTexture = new Texture2D(1, 1);
         _backgroundTexture.SetPixel(0, 0, new Color(0.1f, 0.1f, 0.85f, 0.7f));
         _backgroundTexture.Apply();
@@ -334,6 +403,14 @@ public class MusicDisplayBehaviour : MonoBehaviour
     {
         // Force UI repaint when progress updates
         GUI.changed = true;
+    }
+    public static bool ShowGUI
+    {
+        get
+        {
+            if (Instance == null) return true;
+            return Instance._showGUI;
+        }
     }
 
     private void HandleResizing()
@@ -622,6 +699,9 @@ public class MusicDisplayBehaviour : MonoBehaviour
         switch (CustomMusicManager.CurrentPlaybackMethod)
         {
             case PlaybackMethod.UnityAudio:
+
+
+
                 // For Default and Local preloaded - use Unity AudioSource
                 var audioSource = MusicPlayer.Instance?.m_AudioSourceCurrent;
                 if (audioSource != null && audioSource.clip != null)
@@ -2405,7 +2485,7 @@ public class MusicDisplayBehaviour : MonoBehaviour
         return "Unknown Track";
     }
 
-    private string FormatTime(float seconds)
+    public string FormatTime(float seconds)
     {
         int minutes = (int)(seconds / 60);
         int secs = (int)(seconds % 60);

@@ -44,8 +44,48 @@ public abstract class BasePlaylist : IPlaylist
     public abstract string GetTrackPath(int index);
     public abstract AudioClip GetAudioClip(int index);
 
+    protected virtual void EnsureValidShuffleState()
+    {
+        if (TrackCount <= 0)
+        {
+            ShuffledOrder.Clear();
+            PlayedTracks.Clear();
+            _shuffleIndex = 0;
+            return;
+        }
+
+        if (CurrentTrackIndex < 0 || CurrentTrackIndex >= TrackCount)
+        {
+            CurrentTrackIndex = 0;
+        }
+
+        var validIndices = ShuffledOrder
+            .Where(i => i >= 0 && i < TrackCount)
+            .Distinct()
+            .ToList();
+
+        if (validIndices.Count != ShuffledOrder.Count || validIndices.Count != TrackCount)
+        {
+            ShuffledOrder = Enumerable.Range(0, TrackCount).ToList();
+            PlayedTracks.Clear();
+            _shuffleIndex = CurrentTrackIndex;
+            return;
+        }
+
+        if (!ShuffledOrder.Contains(CurrentTrackIndex))
+        {
+            ShuffledOrder = Enumerable.Range(0, TrackCount).ToList();
+            PlayedTracks.Clear();
+            _shuffleIndex = CurrentTrackIndex;
+            return;
+        }
+
+        _shuffleIndex = Mathf.Clamp(_shuffleIndex, 0, ShuffledOrder.Count - 1);
+    }
+
     public virtual void PlayTrack(int index)
     {
+        EnsureValidShuffleState();
         if (!CanPlayTrack(index)) return;
 
         CurrentTrackIndex = index;
@@ -73,6 +113,7 @@ public abstract class BasePlaylist : IPlaylist
 
     public virtual void PlayNext()
     {
+        EnsureValidShuffleState();
         if (TrackCount == 0) return; // Prevent division by zero
 
         switch (CustomMusicManager.CurrentPlayOrder)
@@ -91,6 +132,7 @@ public abstract class BasePlaylist : IPlaylist
 
     public virtual void PlayPrevious()
     {
+        EnsureValidShuffleState();
         if (TrackCount == 0) return;
 
         int previousIndex = (CurrentTrackIndex - 1 + TrackCount) % TrackCount;
@@ -107,17 +149,23 @@ public abstract class BasePlaylist : IPlaylist
 
     protected virtual void PlayNextSequential()
     {
+        EnsureValidShuffleState();
         if (TrackCount == 0) return;
 
         if (ShuffledOrder.Count > 0)
         {
-            // Use shuffle order for sequential playback
             _shuffleIndex = (_shuffleIndex + 1) % ShuffledOrder.Count;
-            PlayTrack(ShuffledOrder[_shuffleIndex]);
+            int nextIndex = ShuffledOrder[_shuffleIndex];
+            if (nextIndex < 0 || nextIndex >= TrackCount)
+            {
+                ResetShuffle();
+                if (TrackCount == 0) return;
+                nextIndex = CurrentTrackIndex;
+            }
+            PlayTrack(nextIndex);
         }
         else
         {
-            // Fallback to normal sequential
             int nextIndex = (CurrentTrackIndex + 1) % TrackCount;
             PlayTrack(nextIndex);
         }
@@ -126,6 +174,7 @@ public abstract class BasePlaylist : IPlaylist
 
     protected virtual void PlayNextRandom()
     {
+        EnsureValidShuffleState();
         if (TrackCount == 0) return;
 
         if (PlayedTracks.Count >= TrackCount)
@@ -160,9 +209,18 @@ public abstract class BasePlaylist : IPlaylist
 
     public virtual void InitializeShuffle()
     {
-        if (TrackCount == 0) return;
+        if (TrackCount == 0)
+        {
+            ShuffledOrder.Clear();
+            PlayedTracks.Clear();
+            _shuffleIndex = 0;
+            return;
+        }
 
         int currentTrackId = CurrentTrackIndex;
+        if (currentTrackId < 0 || currentTrackId >= TrackCount)
+            currentTrackId = 0;
+
         ShuffledOrder = Enumerable.Range(0, TrackCount).ToList();
 
         var rng = new System.Random();
@@ -189,13 +247,14 @@ public abstract class BasePlaylist : IPlaylist
 
     public virtual void UpdateShuffleState()
     {
+        EnsureValidShuffleState();
+
         if (ShuffledOrder.Count > 0)
         {
             _shuffleIndex = ShuffledOrder.IndexOf(CurrentTrackIndex);
             if (_shuffleIndex < 0)
             {
-                // Current track not in shuffle order, reset shuffle
-                ShuffledOrder.Clear();
+                ShuffledOrder = Enumerable.Range(0, TrackCount).ToList();
                 _shuffleIndex = 0;
             }
         }

@@ -40,6 +40,24 @@ public static class LandfallConfig
         public bool PlaylistWindowVisible = true;
         public float PlaylistWindowHeight = 160f;
         public float UIScale = 1.0f;
+
+        // MiniPlayer
+        public bool MiniPlayerEnabled = true;
+        public float MiniPlayerPositionX = 20f;    // distance from left edge (reference 1920x1080)
+        public float MiniPlayerPositionY = 350f;   // distance from top edge
+        public float MiniPlayerScale = 1f;         // 0.5 to 2
+        public float MiniPlayerOpacity = 1f;       // 0 to 1
+        public bool MiniPlayerPopupEnabled = false;
+
+        public bool MiniPlayerUseCoverColor = false;
+        public int MiniPlayerColorScheme = 0;       // 0 = Default, 1 = Rainbow, 2 = Custom
+        public bool UseIconAsDefaultCover = false;
+
+        public Color MiniPlayerBackgroundColor = new Color(1f, 0.3f, 0.5f, 0.7f);
+        public Color MiniPlayerSliderColor = Color.white;
+        public Color MiniPlayerFontColor = Color.white;
+        // Optionally add cover border color if you want separate control:
+        public Color MiniPlayerCoverBorderColor = Color.white;
     }
 
     [Serializable]
@@ -59,7 +77,7 @@ public static class LandfallConfig
 
     public static readonly string[] DefaultStreams = new string[]
     {
-        "http://hyperadio.ru:8000/live",
+        "https://funkyunclefm.net/stream",
         "https://c22.radioboss.fm/stream/144",
         "https://kathy.torontocast.com:3060",
         "https://kpop.onlyhit.us/play",

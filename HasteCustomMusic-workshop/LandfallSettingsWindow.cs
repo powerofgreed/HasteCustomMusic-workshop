@@ -2,6 +2,7 @@
 using System.IO;
 using UnityEngine;
 
+[DefaultExecutionOrder(10000)]
 public class LandfallSettingsWindow : MonoBehaviour
 {
     private bool _showSettings = false;
@@ -33,6 +34,10 @@ public class LandfallSettingsWindow : MonoBehaviour
 
     void Update()
     {
+        if (!_showSettings && _cursorStateForced)
+        {
+            RestoreCursorState();
+        }
         // Toggle settings window with F10 (configurable later)
         if (Input.GetKeyDown(KeyCode.F10))
         {
@@ -46,6 +51,15 @@ public class LandfallSettingsWindow : MonoBehaviour
 
         // Handle hotkey capture
         CheckHotkeyCapture();
+    }
+    void LateUpdate()
+    {
+        if (_showSettings)
+        {
+            // Force cursor visible and unlocked every frame
+            Cursor.visible = true;
+            Cursor.lockState = CursorLockMode.None;
+        }
     }
 
     void OnGUI()
@@ -114,6 +128,7 @@ public class LandfallSettingsWindow : MonoBehaviour
 
         if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log($"Restored cursor state - Visible: {_wasCursorVisible}, LockState: {_previousCursorLockState}");
     }
+    
     public void ToggleVisibility()
     {
         _showSettings = !_showSettings;
@@ -151,6 +166,7 @@ public class LandfallSettingsWindow : MonoBehaviour
         DrawPlaybackSection();
         DrawLoaderSection();
         DrawYoutubeSection();
+        DrawMiniPlayerSection();
         DrawDebugSection();
         GUILayout.EndScrollView();
 
@@ -388,6 +404,130 @@ public class LandfallSettingsWindow : MonoBehaviour
         _batRecreateSuccess = result;
         _batRecreateStatus = result ? "Batch files recreated successfully." : message;
         _batRecreateInProgress = false;
+    }
+
+    void DrawMiniPlayerSection()
+    {
+        GUILayout.Label("MINI PLAYER", _headerStyle);
+
+        // Master enable toggle
+        bool oldEnabled = LandfallConfig.CurrentConfig.MiniPlayerEnabled;
+        LandfallConfig.CurrentConfig.MiniPlayerEnabled = GUILayout.Toggle(
+            LandfallConfig.CurrentConfig.MiniPlayerEnabled,
+            "Enable MiniPlayer");
+
+        // If disabled, stop here
+        if (!LandfallConfig.CurrentConfig.MiniPlayerEnabled)
+        {
+            GUILayout.Space(10);
+            return;
+        }
+
+        GUILayout.BeginVertical(GUI.skin.box);
+
+        GUILayout.BeginVertical(GUI.skin.box);
+
+        GUILayout.BeginVertical(GUI.skin.box);
+        GUILayout.Label("Position:");
+        GUILayout.BeginHorizontal();
+        GUILayout.Label("X:", GUILayout.Width(25));
+        LandfallConfig.CurrentConfig.MiniPlayerPositionX = GUILayout.HorizontalSlider(
+            LandfallConfig.CurrentConfig.MiniPlayerPositionX, 0f, 1920f);
+        GUILayout.Label("Y:", GUILayout.Width(25));
+        LandfallConfig.CurrentConfig.MiniPlayerPositionY = GUILayout.HorizontalSlider(
+            LandfallConfig.CurrentConfig.MiniPlayerPositionY, 0f, 1080f);
+        GUILayout.EndHorizontal();
+        GUILayout.EndVertical();
+
+        GUILayout.BeginVertical(GUI.skin.box);
+        GUILayout.Label("Scale:");
+        LandfallConfig.CurrentConfig.MiniPlayerScale = GUILayout.HorizontalSlider(
+            LandfallConfig.CurrentConfig.MiniPlayerScale, 0.5f, 2f);
+        GUILayout.EndVertical();
+
+        GUILayout.BeginVertical(GUI.skin.box);
+        GUILayout.Label("Opacity:");
+        LandfallConfig.CurrentConfig.MiniPlayerOpacity = GUILayout.HorizontalSlider(
+            LandfallConfig.CurrentConfig.MiniPlayerOpacity, 0f, 1f);
+        GUILayout.EndVertical();
+        if (GUILayout.Button("Reset Position, Scale & Opacity", GUILayout.Height(25)))
+        {
+            LandfallConfig.CurrentConfig.MiniPlayerPositionX = 20f;
+            LandfallConfig.CurrentConfig.MiniPlayerPositionY = 350f;
+            LandfallConfig.CurrentConfig.MiniPlayerScale = 1f;
+            LandfallConfig.CurrentConfig.MiniPlayerOpacity = 1f;
+        }
+        GUILayout.EndVertical();
+
+        // ------------------------------------------------
+
+        // Cover image as color scheme
+        GUILayout.BeginVertical(GUI.skin.box);
+
+        LandfallConfig.CurrentConfig.MiniPlayerPopupEnabled = GUILayout.Toggle(
+            LandfallConfig.CurrentConfig.MiniPlayerPopupEnabled,
+            "Enable Popup Animation (slide in on track change)");
+
+        LandfallConfig.CurrentConfig.MiniPlayerUseCoverColor = GUILayout.Toggle(
+            LandfallConfig.CurrentConfig.MiniPlayerUseCoverColor,
+            "Use Cover Image as Color Scheme");
+
+        // Color scheme selection (radio‑like)
+        GUILayout.Label("Color Scheme:");
+        string[] schemes = { "Default", "Rainbow", "Custom" };
+        int oldScheme = LandfallConfig.CurrentConfig.MiniPlayerColorScheme;
+        int newScheme = GUILayout.SelectionGrid(oldScheme, schemes, 3);
+        if (newScheme != oldScheme)
+        {
+            LandfallConfig.CurrentConfig.MiniPlayerColorScheme = newScheme;
+        }
+
+        // If Custom scheme selected, show RGBA sliders
+        if (LandfallConfig.CurrentConfig.MiniPlayerColorScheme == 2)
+        {
+            DrawColorSlider("Background", ref LandfallConfig.CurrentConfig.MiniPlayerBackgroundColor);
+            DrawColorSlider("Slider", ref LandfallConfig.CurrentConfig.MiniPlayerSliderColor);
+            DrawColorSlider("Font", ref LandfallConfig.CurrentConfig.MiniPlayerFontColor);
+        }
+        GUILayout.EndVertical();
+
+        GUILayout.BeginVertical(GUI.skin.box);
+        GUILayout.BeginHorizontal();
+        LandfallConfig.CurrentConfig.UseIconAsDefaultCover = GUILayout.Toggle(
+            LandfallConfig.CurrentConfig.UseIconAsDefaultCover,
+            "Enable ICON.png as default cover image");
+        if (GUILayout.Button("Open Folder", GUILayout.Width(100)))
+        {
+            Application.OpenURL("file://" + LandfallConfig.ConfigDirectory);
+        }
+        GUILayout.EndHorizontal();
+
+        GUILayout.BeginHorizontal();
+        GUILayout.FlexibleSpace();
+        GUILayout.Label("Feel free to replace ICON.png with own .png image. Need restart.");
+        GUILayout.FlexibleSpace();
+        GUILayout.EndHorizontal();
+        GUILayout.EndVertical(); 
+
+        GUILayout.EndVertical();
+        GUILayout.Space(10);
+    }
+
+    // Helper to draw RGBA sliders for a Color field
+    private void DrawColorSlider(string label, ref Color color)
+    {
+        GUILayout.BeginHorizontal();
+        GUILayout.Label(label + " RGBA:", GUILayout.Width(100));
+
+        float r = color.r, g = color.g, b = color.b, a = color.a;
+
+        r = GUILayout.HorizontalSlider(r, 0f, 1f, GUILayout.Width(40));
+        g = GUILayout.HorizontalSlider(g, 0f, 1f, GUILayout.Width(40));
+        b = GUILayout.HorizontalSlider(b, 0f, 1f, GUILayout.Width(40));
+        a = GUILayout.HorizontalSlider(a, 0f, 1f, GUILayout.Width(40));
+
+        color = new Color(r, g, b, a);
+        GUILayout.EndHorizontal();
     }
 
     void DrawDebugSection()
