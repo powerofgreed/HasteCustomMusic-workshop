@@ -1,6 +1,7 @@
 ﻿using Landfall.Haste.Music;
 using System.Collections;
 using System.Drawing;
+using System.Text;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -14,6 +15,7 @@ using DrawingPixelFormat = System.Drawing.Imaging.PixelFormat;
 using DrawingRectangle = System.Drawing.Rectangle;
 using Image = UnityEngine.UI.Image;
 using Object = UnityEngine.Object;
+using FontStyle = TMPro.FontStyles;
 
 public class MiniPlayerManager : MonoBehaviour
 {
@@ -165,7 +167,7 @@ public class MiniPlayerManager : MonoBehaviour
         if (trackName != _lastUnityTrackName)
         {
             _lastUnityTrackName = trackName;
-            MiniPlayer.SetTrackName(Truncate(trackName, 50));
+            MiniPlayer.SetTrackName(Truncate(trackName, 100));
             OnNewTrackStarted(trackName);
         }
 
@@ -235,7 +237,7 @@ public class MiniPlayerManager : MonoBehaviour
             elapsed += Time.deltaTime;
             float t = Mathf.Clamp01(elapsed / slideInDuration);
             // Ease-out: fast start, slow end
-            float eased = 1f - Mathf.Pow(1f - t, 20f); 
+            float eased = 1f - Mathf.Pow(1f - t, 20f);
             MiniPlayer.SetAnchoredPosition(Vector2.Lerp(offscreen, target, eased));
             yield return null;
         }
@@ -252,7 +254,7 @@ public class MiniPlayerManager : MonoBehaviour
             elapsed += Time.deltaTime;
             float t = Mathf.Clamp01(elapsed / slideOutDuration);
             // Ease-in: slow start, fast end
-            float eased = MathF.Pow(t,15f);
+            float eased = MathF.Pow(t, 15f);
             MiniPlayer.SetAnchoredPosition(Vector2.Lerp(target, offscreen, eased));
             yield return null;
         }
@@ -301,10 +303,10 @@ public class MiniPlayerManager : MonoBehaviour
         }
         else
         {
-            _lastRadioTitle = string.Empty; 
+            _lastRadioTitle = string.Empty;
         }
         if (!string.IsNullOrWhiteSpace(title))
-            MiniPlayer.SetTrackName(Truncate(title, 50));
+            MiniPlayer.SetTrackName(Truncate(title, 100));
         MiniPlayer.SetArtist(StreamingClip.CurrentStreamArtist ?? string.Empty);
         MiniPlayer.SetAlbum(StreamingClip.CurrentStreamAlbum ?? string.Empty);
 
@@ -620,6 +622,7 @@ public static class MiniPlayer
             anchoredPos: new Vector2(150, 140),
             pivot: new Vector2(0, 1),
             alignment: TMPro.TextAlignmentOptions.TopLeft,
+            fontStyle: FontStyle.Normal,
             fontSize: 26,
             color: Color.white,
             size: new Vector2(240, 30)
@@ -635,6 +638,7 @@ public static class MiniPlayer
             anchoredPos: new Vector2(150, 97),
             pivot: new Vector2(0, 1),
             alignment: TMPro.TextAlignmentOptions.TopLeft,
+            fontStyle: FontStyle.Bold,
             fontSize: 18,
             color: Color.white,
             size: new Vector2(240, 30)
@@ -650,6 +654,7 @@ public static class MiniPlayer
             anchoredPos: new Vector2(5, -5),
             pivot: new Vector2(0, 1),
             alignment: TMPro.TextAlignmentOptions.TopLeft,
+            fontStyle: FontStyle.Italic,
             fontSize: 16,
             color: Color.white,
             size: new Vector2(240, 30)
@@ -665,6 +670,7 @@ public static class MiniPlayer
             anchoredPos: new Vector2(390, 10),
             pivot: new Vector2(1, 0),
             alignment: TMPro.TextAlignmentOptions.Right,
+            fontStyle: FontStyles.Bold | FontStyles.Italic,
             fontSize: 18,
             color: Color.white,
             size: new Vector2(150, 30)
@@ -677,6 +683,7 @@ public static class MiniPlayer
         Vector2 anchoredPos,
         Vector2 pivot,
         TMPro.TextAlignmentOptions alignment,
+        FontStyle fontStyle,
         int fontSize,
         Color color,
         Vector2 size)
@@ -690,7 +697,7 @@ public static class MiniPlayer
         text.color = color;
         text.alignment = alignment;
         text.raycastTarget = false;
-        text.fontStyle = FontStyles.Bold;
+        text.fontStyle = fontStyle;
 
         if (_font != null)
             text.font = _font;
@@ -813,8 +820,12 @@ public static class MiniPlayer
 
                 if (_font == null)
                 {
-                    _font = FindFontByName("AkzidenzGroteskPro-Bold SDF");
-                    if (_font != null) ApplyFont();
+                    _font = FindFontByName("NotoSansSC-Bold_Dialogues");
+
+                    if (_font != null)
+                    {
+                        ApplyFont();
+                    }
                 }
 
                 yield return new WaitForSeconds(1f);
@@ -853,19 +864,58 @@ public static class MiniPlayer
             if (_nameText != null) _nameText.font = _font;
             if (_artistText != null) _artistText.font = _font;
             if (_timeText != null) _timeText.font = _font;
+
+            PrewarmFont(_font);
         }
     }
 
-    public static void ApplyTransformSettings(float posX, float posY, float scale, float opacity)
+    private static void PrewarmFont(TMP_FontAsset font)
     {
-        if (_bgRect != null)
+        if (font == null) return;
+
+        var sb = new StringBuilder();
+
+        // --- Basic Latin (English + common punctuation) ---
+        for (char c = ' '; c <= '~'; c++) sb.Append(c);
+        // Additional musical / title symbols
+        sb.Append("♪♫★☆→↔⇒⇔°…·•©®™");
+
+        // --- French accents ---
+        sb.Append("àâçéèêëîïôùûüÿæœÀÂÇÉÈÊËÎÏÔÙÛÜŸÆŒ");
+
+        // --- Russian (full Cyrillic alphabet, common) ---
+        for (int i = 0x0410; i <= 0x044F; i++) sb.Append((char)i);
+        sb.Append('Ё').Append('ё');
+
+        // --- Japanese Kana (full hiragana + katakana) ---
+        for (int i = 0x3040; i <= 0x309F; i++) sb.Append((char)i);
+        for (int i = 0x30A0; i <= 0x30FF; i++) sb.Append((char)i);
+
+        // --- Japanese common kanji (subset, most used) ---
+        sb.Append(
+            "日一国人年大本中生出時上下見行出入分前間後等" +
+            "何者地合自社手学高気会立小目今月火水木金土" +
+            "私男女子父母友王先生校車駅道駅名所");
+
+        // --- Korean common syllables (subset, most frequent) ---
+        sb.Append(
+            "가나다라마바사아자차카타파하" +
+            "거너더러머버서어저처커터퍼허" +
+            "고노도로모보소오조초코토포호");
+
+        // --- Chinese common simplified characters (subset) ---
+        sb.Append(
+            "的一是了我不人在他有这上们来到时大地为子中你说生国年着就那和要她出也得里后自以会家可下而过天去能对小多然于心学么之都好看起发当没成只如事把还用第样道想作种开美总从无情己面最女但现前些所同日手又行意动方期它头经长儿回位分爱老因很给名法间斯知世什两次使身者被高已亲其进此话常与活正感");
+
+        string characters = sb.ToString();
+
+        if (font.TryAddCharacters(characters, out string missingChars))
         {
-            _bgRect.anchoredPosition = new Vector2(posX, -posY); // posY is distance from top
-            _bgRect.localScale = Vector3.one * scale;
+            Debug.Log($"[MiniPlayer] Font prewarm complete: added {characters.Length} characters.");
         }
-        if (_canvasGroup != null)
+        else
         {
-            _canvasGroup.alpha = opacity;
+            Debug.LogWarning($"[MiniPlayer] Font prewarm failed or characters already exist: {missingChars}");
         }
     }
 
@@ -1012,6 +1062,7 @@ public static class MiniPlayer
         // Remove Unicode replacement character
         string cleaned = input.Replace("\uFFFD", string.Empty);
         cleaned = cleaned.Replace("\uFEFF", string.Empty);
+        cleaned = cleaned.Replace("\u29F8", string.Empty);
 
         // Remove other control characters (keeping common line breaks if ever needed)
         cleaned = new string(cleaned.Where(c => !char.IsControl(c) || c == '\n' || c == '\r' || c == '\t').ToArray());
@@ -1167,5 +1218,7 @@ public static class MiniPlayer
         if (_canvasGroup != null)
             _canvasGroup.alpha = opacity;
     }
+
+
 
 }

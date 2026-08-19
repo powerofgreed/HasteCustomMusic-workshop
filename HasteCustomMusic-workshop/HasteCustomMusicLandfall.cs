@@ -1151,10 +1151,10 @@ public class MusicDisplayBehaviour : MonoBehaviour
                     GUI.enabled = true;
 
                     GUILayout.FlexibleSpace();
-                    // Playlist preload and subfolder flags
-                    LandfallConfig.CurrentConfig.PreloadEntirePlaylist = GUILayout.Toggle(
-                        LandfallConfig.CurrentConfig.PreloadEntirePlaylist,
-                        "Preload",
+                    // Playlist load on startup and subfolder flags
+                    LandfallConfig.CurrentConfig.ForceLocalPlaylist = GUILayout.Toggle(
+                        LandfallConfig.CurrentConfig.ForceLocalPlaylist,
+                        "Load on startup",
                         _toggleStyle,
                         GUILayout.Height(20)
                     );

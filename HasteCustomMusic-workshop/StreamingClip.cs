@@ -1138,6 +1138,16 @@ public class StreamingClip : MonoBehaviour
             {
                 EnsureBassInitializedAtDeviceRate(_deviceRate);
 
+                if (YtDlpStreamer.IsYouTubeUrl(path))
+                {
+                    int ytHandle = YtDlpStreamer.CreateStream(path);
+                    if (ytHandle != 0)
+                        return ytHandle;
+
+                    Debug.LogWarning($"[StreamingClip] yt-dlp stream creation failed for {path}");
+                    return 0;
+                }
+
                 // Let BASS use default buffering - remove all custom BufferLength/PreBuffer settings
                 BassFlags commonFlags = BassFlags.Decode | BassFlags.Float | BassFlags.StreamStatus;
 

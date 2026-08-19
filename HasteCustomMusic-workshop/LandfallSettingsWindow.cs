@@ -339,7 +339,7 @@ public class LandfallSettingsWindow : MonoBehaviour
 
         LandfallConfig.CurrentConfig.YoutubeEmbedThumbnail = GUILayout.Toggle(
             LandfallConfig.CurrentConfig.YoutubeEmbedThumbnail,
-            "thumbnail as an image cover. (Takes longer for download)");
+            "thumbnail as an image cover. (Takes longer to download)");
 
         LandfallConfig.CurrentConfig.YoutubeUseCookies = GUILayout.Toggle(
             LandfallConfig.CurrentConfig.YoutubeUseCookies,
