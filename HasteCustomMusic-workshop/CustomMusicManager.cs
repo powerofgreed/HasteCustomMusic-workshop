@@ -126,6 +126,8 @@ public class CustomMusicManager : MonoBehaviour
     public static MusicPlaylist _lastAttemptedDefaultPlaylist;
     public static int _lastAttemptedTrackIndex;
 
+    public static bool PrefetchTriggeredForCurrentTrack = false;
+
     public static void PlayTrack(int trackIndex) => PlaylistManager.PlayTrack(trackIndex);
     public static void PlayCurrentTrack() => PlaylistManager.PlayCurrentTrack();
     public static void PlayNextTrack() => PlaylistManager.PlayNextTrack();

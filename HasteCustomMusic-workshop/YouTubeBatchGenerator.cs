@@ -1,7 +1,3 @@
-using System;
-using System.IO;
-using UnityEngine;
-
 public static class YouTubeBatchGenerator
 {
     private static readonly string[] BatFiles = new[]
@@ -62,6 +58,8 @@ public static class YouTubeBatchGenerator
                    ? "if not exist \"%~dp0cookies.txt\" echo.> \"%~dp0cookies.txt\"\r\n"
                    : string.Empty) +
                "echo.\r\n" +
+               "\"%YTDLP%\" -U --update-to nightly\r\n" +
+               " \r\n" +
                "echo HasteCustomMusic - YouTube to MP3\r\n" +
                "echo.\r\n" +
                "set /p \"input_url=Enter YouTube URL (video or playlist): \"\r\n" +
@@ -70,7 +68,7 @@ public static class YouTubeBatchGenerator
                "    pause\r\n" +
                "    exit /b 0\r\n" +
                ")\r\n" +
-               "\"%YTDLP%\" --update --ffmpeg-location \"%FFMPEG_DIR%\" --ignore-errors --extract-audio --extractor-args \"youtube:player_client=default,web_safari\" --audio-format mp3 --audio-quality 0 --add-metadata" + embedThumbnailFlag + cookiesFlag + " --output \"%DEST%\\%%(playlist_index|)s%%(playlist_index|- )s%%(title)s.%%(ext)s\" \"%input_url%\"\r\n" +
+               "\"%YTDLP%\" --ffmpeg-location \"%FFMPEG_DIR%\" --ignore-errors --extract-audio --extractor-args \"youtube:player_client=default,web_safari\" --audio-format mp3 --audio-quality 0 --add-metadata" + embedThumbnailFlag + cookiesFlag + " --output \"%DEST%\\%%(playlist_index|)s%%(playlist_index|- )s%%(title)s.%%(ext)s\" \"%input_url%\"\r\n" +
                "echo.\r\n" +
                "echo Download complete!\r\n" +
                "pause\r\n" +

@@ -70,6 +70,10 @@ public static class HasteCustomMusicLandfall
         Object.DontDestroyOnLoad(managerObj);
         managerObj.AddComponent<MiniPlayerManager>();
 
+        var setupWindowObj = new GameObject("YouTubeSetupWindow");
+        Object.DontDestroyOnLoad(setupWindowObj);
+        setupWindowObj.AddComponent<YouTubeSetupWindow>();
+
         Debug.Log("HasteCustomMusic: Landfall version initialized successfully!");
 
 
@@ -129,7 +133,7 @@ public class MusicDisplayBehaviour : MonoBehaviour
     private float _resizeStartHeight;
     private static float _currentVolume = 1.0f;
     private float _lastAutoAdvanceAt = 0f;
-    private const float AutoAdvanceCooldown = 1f; // seconds; prevents multiple advances in quick succession
+    private const float AutoAdvanceCooldown = 3f; // seconds; prevents multiple advances in quick succession
     private float _lastSeenStreamTotal = 0f;
 
     //dynamic resolution
@@ -156,6 +160,9 @@ public class MusicDisplayBehaviour : MonoBehaviour
     private Vector2 _dragStartMousePos;
     private float _dragStartTime;
 
+    private bool _ytDlpUpdatedThisSession = false;
+    private bool _isProcessingStream = false;
+    private string _streamStatusMessage = "";
 
     public enum AudioSourceTab { Local, Hybrid, Streams }
     private AudioSourceTab _activeTab = AudioSourceTab.Local;
@@ -233,35 +240,7 @@ public class MusicDisplayBehaviour : MonoBehaviour
         return Vector2.zero;
     }
 
-    private static void EnsureIconFile()
-    {
-        try
-        {
-            string configDir = LandfallConfig.ConfigDirectory;
-            if (string.IsNullOrEmpty(configDir))
-                return;
 
-            Directory.CreateDirectory(configDir);
-            string dest = Path.Combine(configDir, "ICON.png");
-            if (!File.Exists(dest))
-            {
-                string src = Path.Combine(WorkshopHelper.ModDirectory, "ICON.png");
-                if (File.Exists(src))
-                {
-                    File.Copy(src, dest, false);
-                    Debug.Log("Icon file copied to config directory.");
-                }
-                else
-                {
-                    Debug.LogWarning("Source ICON.png not found in mod directory.");
-                }
-            }
-        }
-        catch (Exception e)
-        {
-            Debug.LogWarning($"Failed to ensure ICON.png: {e.Message}");
-        }
-    }
 
     private void SetScroll(PlaylistType type, Vector2 pos)
     {
@@ -367,7 +346,7 @@ public class MusicDisplayBehaviour : MonoBehaviour
         // Force immediate repaint of GUI so the changed title appears without delay
         GUI.changed = true;
         // Optionally log for debug
-        Debug.Log($"[MusicDisplayPlugin] Streaming title updated -> {newTitle}");
+        if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log($"[MusicDisplayPlugin] Streaming title updated -> {newTitle}");
     }
     private string GetAuthoritativeTrackName(string fallback)
     {
@@ -795,11 +774,13 @@ public class MusicDisplayBehaviour : MonoBehaviour
                     bool canSeek;
                     if (sc != null && isStream)
                     {
-                        canSeek = (totalTime > Mathf.Epsilon) && (sc.HasRecordedRealLength || sc.IsFullyDownloaded || sc.HasRealLength);
+                        canSeek = (totalTime > Mathf.Epsilon)
+                            && (sc.HasRecordedRealLength || sc.IsFullyDownloaded || sc.HasRealLength)
+                            && (CustomMusicManagerExtensions.GetStreamBufferPercent() > Mathf.Epsilon == CustomMusicManagerExtensions.GetStreamBufferPercent() > 0.99f);
                     }
                     else
                     {
-                        // Unity preloaded clips or other local playback
+                        // Unity preloaded clips or other local playback are always seekable.
                         canSeek = (totalTime > Mathf.Epsilon);
                     }
 
@@ -928,7 +909,7 @@ public class MusicDisplayBehaviour : MonoBehaviour
             // Tab toolbar 
             GUILayout.BeginHorizontal();
             {
-                string[] tabNames = { "Local Files", "❤Favorite❤", "Streams" };
+                string[] tabNames = { "Local Files", "❤Favorite❤", "YouTube" };
                 for (int i = 0; i < tabNames.Length; i++)
                 {
                     var tab = (AudioSourceTab)i;
@@ -1330,16 +1311,21 @@ public class MusicDisplayBehaviour : MonoBehaviour
             GUILayout.BeginHorizontal();
             {
 
-                GUILayout.Label(connected ? "Status: Valid Path" : "Status: No Instance", GUILayout.ExpandWidth(false), GUILayout.Height(20));
+                GUILayout.Label(_streamStatusMessage, GUILayout.ExpandWidth(false), GUILayout.Height(20));
 
 
 
                 GUILayout.FlexibleSpace();
 
-                StreamingClip.TreatInputAsPlaylist = GUILayout.Toggle(StreamingClip.TreatInputAsPlaylist, "Playlist(.m3u/...)", GUILayout.Height(20), GUILayout.Width(120));
+                StreamingClip.TreatInputAsPlaylist = GUILayout.Toggle(StreamingClip.TreatInputAsPlaylist, "Playlist(list=/.m3u)", GUILayout.Height(20), GUILayout.Width(120));
 
-                GUI.enabled = !connected && !string.IsNullOrEmpty(_customStreamPath);
-                if (GUILayout.Button("Start", GUILayout.ExpandWidth(false), GUILayout.Height(20), GUILayout.Width(45)))
+                bool canStart = !_isProcessingStream
+                                && !CustomMusicManager.IsLoading
+                                && !string.IsNullOrEmpty(_customStreamPath)
+                                && !connected;
+
+                GUI.enabled = canStart;
+                if (GUILayout.Button("Start", GUILayout.Height(25)))
                 {
                     StartStreamFromTab();
                 }
@@ -1352,8 +1338,40 @@ public class MusicDisplayBehaviour : MonoBehaviour
                 GUILayout.Label($"Buffer: {(buf * 100f):F0}%", GUILayout.ExpandWidth(false));
                 GUILayout.FlexibleSpace();
 
+                // YouTube Playback controls
+                if (LandfallConfig.CurrentConfig.YouTubeSetupConfirmed)
+                {
+                    if (!_ytDlpUpdatedThisSession)
+                    {
+                        string ytDlpPath = Path.Combine(LandfallConfig.ConfigDirectory, "yt-dlp", "yt-dlp.exe");
+                        bool ytDlpExists = File.Exists(ytDlpPath);
+
+                        GUI.enabled = ytDlpExists;
+                        if (GUILayout.Button("Update yt-dlp", GUILayout.Height(20)))
+                        {
+                            _streamStatusMessage = "Updating yt-dlp...";
+                            YtDlpUpdater.UpdateAsync(ytDlpPath, (success, message) =>
+                            {
+                                _streamStatusMessage = message;
+                                if (success)
+                                {
+                                    _ytDlpUpdatedThisSession = true;
+                                }
+                            });
+                        }
+                        GUI.enabled = true;
+                    }
+                }
+                else
+                {
+                    if (GUILayout.Button("Enable YOUTUBE", GUI.skin.toggle, GUILayout.Height(20)))
+                    {
+                        YouTubeSetupWindow.Show();
+                    }
+                }
+
                 // Load saved streams button
-                if (GUILayout.Button("Load Saved", GUILayout.ExpandWidth(false), GUILayout.Height(20), GUILayout.Width(95)))
+                if (GUILayout.Button("Load Radio", GUILayout.ExpandWidth(false), GUILayout.Height(20), GUILayout.Width(95)))
                 {
                     LoadStreamsPlaylistAndSwitchView();
                 }
@@ -2319,28 +2337,79 @@ public class MusicDisplayBehaviour : MonoBehaviour
             return playlist.CurrentTrackIndex;
         }
     }
-    private void StartStreamFromTab()
+    private async void StartStreamFromTab()
     {
         if (string.IsNullOrEmpty(_customStreamPath))
         {
-            Debug.LogWarning("Stream path is empty");
+            _streamStatusMessage = "Please enter a valid path or URL.";
             return;
         }
 
-        if (StreamingClip.TreatInputAsPlaylist)
-        {
-            // Load and decode playlist - it will handle clearing only if successful
-            _ = CustomMusicManager.LoadStreamsPlaylist(_customStreamPath);
+        _isProcessingStream = true;
+        _streamStatusMessage = "Validating...";
 
-            // Auto-switch to view streams playlist after loading
-            StartCoroutine(SwitchToStreamsAfterLoad());
-        }
-        else
+        try
         {
-            // Direct stream connection - no clearing needed
-            CustomMusicManager.StartStreaming(_customStreamPath);
-            CustomMusicManager.CurrentPlaybackMethod = PlaybackMethod.Streaming;
-            CustomMusicManager.CurrentPlaybackPlaylistType = PlaylistType.Streams;
+            if (StreamingClip.TreatInputAsPlaylist)
+            {
+                if (YtDlpStreamer.IsYouTubePlaylistUrl(_customStreamPath))
+                {
+                    _streamStatusMessage = "Fetching YouTube playlist...";
+                    Debug.Log($"Loading YouTube playlist: {_customStreamPath}");
+                    List<string> youtubeTracks = await YtDlpStreamer.FetchPlaylistUrlsAsync(_customStreamPath);
+                    if (youtubeTracks.Count == 0)
+                    {
+                        _streamStatusMessage = "YouTube playlist returned no playable tracks.";
+                        Debug.LogWarning("YouTube playlist returned no playable tracks.");
+                        return;
+                    }
+                    _streamStatusMessage = $"Loading {youtubeTracks.Count} tracks...";
+                    CustomMusicManager.StreamsTrackPaths.Clear();
+                    CustomMusicManager.StreamsTrackPaths.AddRange(youtubeTracks);
+                    CustomMusicManager.StreamsCurrentTrackIndex = 0;
+                    CustomMusicManager.CreateStreamsPlaylistFromTracks();
+
+                    // Reset playlist manager state for the new playlist
+                    var streamsPlaylist = PlaylistManager.GetPlaylist(PlaylistType.Streams) as BasePlaylist;
+                    if (streamsPlaylist != null)
+                    {
+                        streamsPlaylist.ResetShuffle();
+                        streamsPlaylist.CurrentTrackIndex = 0;
+                    }
+
+                    CustomMusicManager.CurrentPlaybackMethod = PlaybackMethod.Streaming;
+                    CustomMusicManager.CurrentPlaybackPlaylistType = PlaylistType.Streams;
+                    PlaylistManager.CurrentPlaylistType = PlaylistType.Streams; // ensure manager points to streams
+                    CustomMusicManager.PlayTrackWithMethod(0, PlaylistType.Streams);
+                    SwitchToViewPlaylist(PlaylistType.Streams);
+                    _streamStatusMessage = "YouTube playlist loaded.";
+                    Debug.Log($"Loaded YouTube playlist with {youtubeTracks.Count} tracks");
+                    return;
+                }
+
+                _streamStatusMessage = "Loading playlist...";
+                await CustomMusicManager.LoadStreamsPlaylist(_customStreamPath);
+                _streamStatusMessage = "Playlist loaded.";
+                StartCoroutine(SwitchToStreamsAfterLoad());
+            }
+            else
+            {
+                // Direct stream connection 
+                _streamStatusMessage = "Starting stream...";
+                CustomMusicManager.StartStreaming(_customStreamPath);
+                CustomMusicManager.CurrentPlaybackMethod = PlaybackMethod.Streaming;
+                CustomMusicManager.CurrentPlaybackPlaylistType = PlaylistType.Streams;
+                _streamStatusMessage = "Stream started.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _streamStatusMessage = $"Error: {ex.Message}";
+            Debug.LogError($"StartStreamFromTab error: {ex}");
+        }
+        finally
+        {
+            _isProcessingStream = false;   // processing done (or failed)
         }
     }
 
@@ -2362,6 +2431,8 @@ public class MusicDisplayBehaviour : MonoBehaviour
     }
     void Update()
     {
+        MainThreadDispatcher.Drain();
+
         if (LandfallConfig.CurrentConfig.ToggleUIKey.IsDown())
             _showGUI = !_showGUI;
 
@@ -2400,10 +2471,24 @@ public class MusicDisplayBehaviour : MonoBehaviour
                     _lastSeenStreamTotal = totalTime;
                 }
 
+
                 // Require a trustworthy total before auto-advancing:
                 // - totalTime > 0 and either HasRealLength or IsFullyDownloaded
                 var stream = CustomMusicManager._streamingInstance;
                 bool streamHasAuth = stream != null && (stream.HasRealLength || stream.IsFullyDownloaded);
+
+                // Prefetch next YouTube track 15-10 seconds before current ends
+                if (!CustomMusicManager.CurrentPlayOrder.Equals(CustomMusicManager.PlayOrder.Loop) &&
+                    totalTime > 0f &&
+                    streamHasAuth)
+                {
+                    float remaining = totalTime - currentTime;
+                    if (remaining <= 15f && remaining > 10f && !CustomMusicManager.PrefetchTriggeredForCurrentTrack)
+                    {
+                        CustomMusicManager.PrefetchTriggeredForCurrentTrack = true;
+                        PrefetchNextTrackIfNeeded();
+                    }
+                }
 
                 if (totalTime > 0f && streamHasAuth)
                 {
@@ -2454,6 +2539,26 @@ public class MusicDisplayBehaviour : MonoBehaviour
             _singleClickExpireAt = 0f;
         }
     }
+    private async void PrefetchNextTrackIfNeeded()
+    {
+        var playlist = PlaylistManager.GetPlaylist(CustomMusicManager.CurrentPlaybackPlaylistType);
+        if (playlist == null) return;
+
+        int nextIndex = playlist.GetNextTrackIndex();
+        if (nextIndex < 0) return;
+
+        string nextPath = playlist.GetTrackPath(nextIndex);
+        if (string.IsNullOrEmpty(nextPath) || !YtDlpStreamer.IsYouTubeUrl(nextPath))
+            return;
+
+        // Prefetch only if not already cached and not expired
+        if (!YtDlpStreamer.TryGetCachedDirectUrl(nextPath, out _))
+        {
+            Debug.Log($"[Prefetch] Fetching direct URL for next YouTube track: {nextPath}");
+            await YtDlpStreamer.PrefetchDirectUrlAsync(nextPath);
+        }
+    }
+
     private string GetCurrentTrackNameFromPlaylist()
     {
         try

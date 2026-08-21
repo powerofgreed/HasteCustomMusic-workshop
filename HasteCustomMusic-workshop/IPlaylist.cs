@@ -29,6 +29,7 @@ public interface IPlaylist
 
     bool CanPlayTrack(int index);
     bool IsTrackAvailable(int index);
+    int GetNextTrackIndex();
 }
 public abstract class BasePlaylist : IPlaylist
 {
@@ -264,6 +265,46 @@ public abstract class BasePlaylist : IPlaylist
         {
             PlayedTracks.Add(CurrentTrackIndex);
         }
+    }
+    public virtual int GetNextTrackIndex()
+    {
+        EnsureValidShuffleState();
+        if (TrackCount == 0) return -1;
+
+        switch (CustomMusicManager.CurrentPlayOrder)
+        {
+            case CustomMusicManager.PlayOrder.Sequential:
+                if (ShuffledOrder.Count > 0)
+                {
+                    return ShuffledOrder[(_shuffleIndex + 1) % ShuffledOrder.Count];
+                }
+                else
+                {
+                    return (CurrentTrackIndex + 1) % TrackCount;
+                }
+
+            case CustomMusicManager.PlayOrder.Loop:
+                return CurrentTrackIndex; // loops the same track, no next
+
+            case CustomMusicManager.PlayOrder.Random:
+                // Mimic PlayNextRandom: pick a track not yet played
+                if (PlayedTracks.Count >= TrackCount)
+                    PlayedTracks.Clear();
+
+                var available = Enumerable.Range(0, TrackCount)
+                    .Where(i => !PlayedTracks.Contains(i))
+                    .ToList();
+
+                if (available.Count > 0)
+                {
+                    return available[UnityEngine.Random.Range(0, available.Count)];
+                }
+                else
+                {
+                    return (CurrentTrackIndex + 1) % TrackCount;
+                }
+        }
+        return -1;
     }
     public virtual void SyncShuffleFrom(BasePlaylist sourcePlaylist)
     {

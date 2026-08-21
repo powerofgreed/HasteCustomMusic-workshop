@@ -228,6 +228,24 @@ public static class PlaylistDecoder
                 }
                 return $"In-game track: {pathWithoutPrefix}";
             }
+            if (YtDlpStreamer.IsYouTubeUrl(trackPath))
+            {
+                if (YtDlpStreamer.TryGetCachedMetadata(trackPath, out var ytMeta))
+                {
+                    return ytMeta.Title;
+                }
+
+                // fallback to video ID
+                if (Uri.TryCreate(trackPath, UriKind.Absolute, out var ytUri))
+                {
+                    string videoId = ytUri.Query.Split('&')
+                        .FirstOrDefault(p => p.StartsWith("v=", StringComparison.OrdinalIgnoreCase))?[2..]
+                        ?? ytUri.Segments.LastOrDefault()?.Trim('/');
+                    if (!string.IsNullOrEmpty(videoId))
+                        return $"YouTube: {videoId}";
+                }
+                return trackPath;
+            }
 
             // Try to parse as URI first
             if (Uri.TryCreate(trackPath, UriKind.Absolute, out Uri uri))
@@ -252,80 +270,7 @@ public static class PlaylistDecoder
                     if (!uri.IsDefaultPort)
                         displayName += $":{uri.Port}";
 
-                    // Add first non-empty path segment if it exists and isn't just a number
-                    if (!string.IsNullOrEmpty(uri.AbsolutePath) && uri.AbsolutePath != "/")
-                    {
-                        var pathSegments = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-                        if (pathSegments.Length > 0)
-                        {
-                            string firstSegment = pathSegments[0];
-
-                            // Skip numeric-only segments (like "144" in your example)
-                            if (!int.TryParse(firstSegment, out _))
-                            {
-                                // Clean up the segment
-                                string cleanSegment = firstSegment;
-
-                                // Remove common streaming path names for cleaner display
-                                string[] commonStreamNames = { "stream", "listen", "live", "radio", "audio" };
-                                foreach (var commonName in commonStreamNames)
-                                {
-                                    if (cleanSegment.Equals(commonName, StringComparison.OrdinalIgnoreCase))
-                                    {
-                                        cleanSegment = "";
-                                        break;
-                                    }
-                                }
-
-                                if (!string.IsNullOrEmpty(cleanSegment))
-                                    displayName += $"/{cleanSegment}";
-                            }
-                            else if (pathSegments.Length > 1)
-                            {
-                                // If first segment is numeric but there's a second, use that
-                                string secondSegment = pathSegments[1];
-                                if (!int.TryParse(secondSegment, out _))
-                                {
-                                    string cleanSegment = secondSegment;
-                                    string[] commonStreamNames = { "stream", "listen", "live", "radio", "audio" };
-                                    foreach (var commonName in commonStreamNames)
-                                    {
-                                        if (cleanSegment.Equals(commonName, StringComparison.OrdinalIgnoreCase))
-                                        {
-                                            cleanSegment = "";
-                                            break;
-                                        }
-                                    }
-
-                                    if (!string.IsNullOrEmpty(cleanSegment))
-                                        displayName += $"/{cleanSegment}";
-                                }
-                            }
-                        }
-                    }
-
-                    // If we still have a very short name, try to get more info
-                    if (displayName.Length < 10 && !string.IsNullOrEmpty(uri.AbsolutePath))
-                    {
-                        // Use the last non-numeric segment
-                        var pathSegments = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-                        for (int i = pathSegments.Length - 1; i >= 0; i--)
-                        {
-                            if (!int.TryParse(pathSegments[i], out _) &&
-                                !string.IsNullOrEmpty(pathSegments[i]) &&
-                                pathSegments[i].Length > 2)
-                            {
-                                displayName += $"/{pathSegments[i]}";
-                                break;
-                            }
-                        }
-                    }
-
-                    // Final fallback - if still too short, use the full host
-                    if (displayName.Length < 6)
-                        displayName = uri.Host;
-
-                    return displayName.Trim('/');
+                    return displayName;
                 }
                 else
                 {

@@ -11,7 +11,6 @@ using ManagedBass;
 using ManagedBass.Mix;
 using System.Runtime.InteropServices;
 using UnityEngine;
-
 public class StreamingClip : MonoBehaviour
 {
     // HLS add-on P/Invoke (encapsulated)
@@ -38,6 +37,7 @@ public class StreamingClip : MonoBehaviour
     public static event Action<string, byte[]> OnPictureChanged;
     public volatile string PublicTrackTitle;
     public string LastKnownTitle => PublicTrackTitle;
+    private bool _isYtDlpFileUser = false;
 
     public float CurrentTime { get; private set; } = 0f;
     public float TotalTime { get; private set; } = 0f;
@@ -160,8 +160,116 @@ public class StreamingClip : MonoBehaviour
         CurrentStreamArtist = null;
         CurrentStreamAlbum = null;
         PublicTrackTitle = null;
+        _isYtDlpFileUser = false;
         TryEmitFlacPicture(path);
 
+        // ---------- YouTube direct streaming ----------
+        if (YtDlpStreamer.IsYouTubeUrl(path))
+        {
+            Debug.Log($"[StreamingClip][YT] Starting YouTube stream (fast path) for: {path}");
+            YtDlpStreamer.YouTubeMetadata cachedMeta = null;
+            if (YtDlpStreamer.TryGetCachedMetadata(path, out cachedMeta))
+            {
+                MainThreadInvoke(() => ApplyYouTubeMetadata(path, cachedMeta));
+            }
+            Task.Run(async () =>
+            {
+                // 0. Apply cached metadata immediately if available
+                YtDlpStreamer.YouTubeMetadata cachedMeta = null;
+                if (YtDlpStreamer.TryGetCachedMetadata(path, out cachedMeta))
+                {
+                    MainThreadInvoke(() => ApplyYouTubeMetadata(path, cachedMeta));
+
+                    // If cached meta has a thumbnail URL, start downloading it in parallel
+                    if (!string.IsNullOrEmpty(cachedMeta.ThumbnailUrl))
+                    {
+                        var thumbTask = YtDlpStreamer.DownloadThumbnailAsync(cachedMeta.ThumbnailUrl);
+                        _ = thumbTask.ContinueWith(t =>
+                        {
+                            if (t.Result != null)
+                            {
+                                cachedMeta.ThumbnailData = t.Result;
+                                MainThreadInvoke(() => ApplyYouTubeMetadata(path, cachedMeta));
+                            }
+                        });
+                    }
+                }
+                // 1. Get direct audio URL
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                string directUrl = await YtDlpStreamer.GetOrPrefetchDirectUrlAsync(path).ConfigureAwait(false);
+                sw.Stop();
+                Debug.Log($"[StreamingClip][YT] Direct audio URL fetched in {sw.ElapsedMilliseconds} ms ({(string.IsNullOrEmpty(directUrl) ? "null" : "ok")})");
+
+                int handle = 0;
+
+                if (!string.IsNullOrEmpty(directUrl))
+                {
+                    handle = YtDlpStreamer.CreateStreamFromUrl(directUrl);
+                    if (handle == 0)
+                    {
+                        Debug.LogWarning("[StreamingClip][YT] Direct URL stream creation failed, falling back to custom file user.");
+                    }
+                    else
+                    {
+                        Debug.Log($"[StreamingClip][YT] Direct URL stream created, handle={handle}");
+                    }
+                }
+
+                // 2. Fallback to custom file user
+                if (handle == 0)
+                {
+                    sw.Restart();
+                    handle = YtDlpStreamer.CreateStream(path);
+                    sw.Stop();
+                    Debug.Log($"[StreamingClip][YT] Custom file user stream returned handle {handle} in {sw.ElapsedMilliseconds} ms");
+                    if (handle != 0)
+                    {
+                        _isYtDlpFileUser = true;  // mark for cleanup
+                    }
+                }
+
+                if (handle == 0)
+                {
+                    Debug.LogError("[StreamingClip][YT] All YouTube stream methods failed.");
+                    return;
+                }
+
+                // 3. Start playback immediately
+                MainThreadInvoke(() =>
+                {
+                    FinishStartStream(new ReadResult
+                    {
+                        StreamHandle = handle,
+                        Path = path,
+                        LengthSeconds = 0f,
+                        LengthBytes = 0L,
+                        Tags = null,
+                        IsRadio = false
+                    });
+                });
+
+                // 4. Fetch full metadata in background and apply when ready
+                var metadata = await YtDlpStreamer.FetchMetadataAsync(path).ConfigureAwait(false);
+                if (metadata != null)
+                {
+                    MainThreadInvoke(() => ApplyYouTubeMetadata(path, metadata));
+
+                    if (metadata.Duration > 0)
+                    {
+                        MainThreadInvoke(() =>
+                        {
+                            TotalTime = (float)metadata.Duration;
+                            _hasRealLength = true;
+                            _hasRecordedRealLength = true;
+                            Debug.Log($"[StreamingClip][YT] Updated duration to {metadata.Duration}s");
+                        });
+                    }
+                }
+            });
+            return;
+        }
+
+        // ---------- Normal (non-YouTube) stream creation ----------
         Task.Run(async () =>
         {
             ReadResult rr = default;
@@ -250,14 +358,29 @@ public class StreamingClip : MonoBehaviour
         {
             if (_mixer != 0) { try { Bass.StreamFree(_mixer); } catch { } _mixer = 0; }
         }
-        if (_stream != 0) { try { Bass.StreamFree(_stream); } catch { } _stream = 0; }
+
+        if (_stream != 0)
+        {
+            if (_isYtDlpFileUser)
+            {
+                YtDlpStreamer.FreeStream(_stream); // kills yt-dlp process and frees stream
+            }
+            else
+            {
+                try { Bass.StreamFree(_stream); } catch { }
+            }
+            _stream = 0;
+        }
+
         if (_clip != null) { try { Destroy(_clip); } catch { } _clip = null; }
+
         PublicTrackTitle = null;
         CurrentStreamTitle = null;
         CurrentStreamArtist = null;
         CurrentStreamAlbum = null;
         _hasRealLength = false;
         _isFullyDownloaded = false;
+        _isYtDlpFileUser = false;
     }
 
     public void Seek(float timeInSeconds)
@@ -1179,42 +1302,6 @@ public class StreamingClip : MonoBehaviour
 
     public static bool TryInitBassOnce()
     {
-        //if (_bassInitialized) return;
-
-        //lock (_initLock)
-        //{
-        //    if (_bassInitialized) return;
-        //    string modDir = Path.GetDirectoryName(typeof(StreamingClip).Assembly.Location);
-        //    try { SetDllDirectory(modDir); } catch { }
-        //    Bass.Configure(Configuration.NetPlaylist, true);
-
-        //    try
-        //    {
-        //        if (!Bass.Init(-1, AudioSettings.outputSampleRate > 0 ? AudioSettings.outputSampleRate : 48000, DeviceInitFlags.Default))
-        //        {
-        //            var err = Bass.LastError;
-        //            if (err != Errors.Already) throw new Exception($"Bass.Init failed: {err}");
-        //        }
-        //        _bassInitialized = true;
-        //        Debug.Log($"[StreamingClip] BASS initialized (v{Bass.Version})");
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        Debug.LogError($"[StreamingClip] BASS init failed: {ex}");
-        //        return;
-        //    }
-
-        //    var pluginDlls = new[] { "bass_aac.dll", "bassflac.dll", "bassopus.dll", "basshls.dll", "bassalac.dll", "bass_spx.dll", "bass_tta.dll" };
-        //    foreach (var dll in pluginDlls)
-        //    {
-        //        string p = Path.Combine(modDir, dll);
-        //        if (!File.Exists(p)) continue;
-        //        int h = Bass.PluginLoad(p);
-        //        if (h == 0) Debug.LogWarning($"[StreamingClip] Plugin {dll} load failed: {Bass.LastError}");
-        //    }
-        //    _pluginsLoaded = true;
-        //}
-
         // Use the ManagedBassLoader instead of direct BASS calls
         return ManagedBassLoader.IsInitialized || ManagedBassLoader.Initialize();
     }
@@ -1787,6 +1874,22 @@ public class StreamingClip : MonoBehaviour
         {
              Debug.LogWarning($"[StreamingClip] Picture extraction error: {ex.Message}");
         }
+    }
+
+    private void ApplyYouTubeMetadata(string path, YtDlpStreamer.YouTubeMetadata metadata)
+    {
+        if (_currentPath != path || metadata == null) return;
+
+        CurrentStreamTitle = metadata.Title;
+        CurrentStreamArtist = metadata.Artist;
+        CurrentStreamAlbum = metadata.Album;
+
+        // Set title cleanly
+        PublicTrackTitle = metadata.Title;
+        MainThreadInvoke(() => OnTitleChanged?.Invoke(metadata.Title));
+
+        if (metadata.ThumbnailData != null && metadata.ThumbnailData.Length > 0)
+            OnPictureChanged?.Invoke(path, metadata.ThumbnailData);
     }
 
     private List<PictureTag> ExtractPictureTagsFromID3v2(IntPtr id3v2Ptr)

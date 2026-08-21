@@ -1,6 +1,4 @@
-﻿using System;
-using System.IO;
-using UnityEngine;
+﻿using UnityEngine;
 
 [DefaultExecutionOrder(10000)]
 public class LandfallSettingsWindow : MonoBehaviour
@@ -25,9 +23,9 @@ public class LandfallSettingsWindow : MonoBehaviour
     private float _uiScale = 1.0f;
     private Matrix4x4 _originalMatrix;
     // Cursor state management
-    private bool _wasCursorVisible;
-    private CursorLockMode _previousCursorLockState;
-    private bool _cursorStateForced = false;
+    public bool _wasCursorVisible;
+    public CursorLockMode _previousCursorLockState;
+    public bool _cursorStateForced = false;
     void Start()
     {
     }
@@ -128,7 +126,7 @@ public class LandfallSettingsWindow : MonoBehaviour
 
         if (LandfallConfig.CurrentConfig.ShowDebug) Debug.Log($"Restored cursor state - Visible: {_wasCursorVisible}, LockState: {_previousCursorLockState}");
     }
-    
+
     public void ToggleVisibility()
     {
         _showSettings = !_showSettings;
@@ -165,8 +163,9 @@ public class LandfallSettingsWindow : MonoBehaviour
         DrawHotkeysSection();
         DrawPlaybackSection();
         DrawLoaderSection();
-        DrawYoutubeSection();
         DrawMiniPlayerSection();
+        DrawYouTubePlaybackSection();
+        DrawYouTubeDownloader();
         DrawDebugSection();
         GUILayout.EndScrollView();
 
@@ -326,13 +325,80 @@ public class LandfallSettingsWindow : MonoBehaviour
 
         GUILayout.Space(10);
         LandfallConfig.CurrentConfig.PlaylistWindowVisible = GUILayout.Toggle(
-    LandfallConfig.CurrentConfig.PlaylistWindowVisible,
-    "Show Playlist Window by Default");
+        LandfallConfig.CurrentConfig.PlaylistWindowVisible,
+            "Show Playlist Window by Default");
         GUILayout.EndVertical();
     }
 
+    void DrawYouTubePlaybackSection()
+    {
+        GUILayout.Label("YOUTUBE PLAYBACK", _headerStyle);
+        GUILayout.BeginVertical(GUI.skin.box);
 
-    void DrawYoutubeSection()
+        // Master enable
+        LandfallConfig.CurrentConfig.YouTubePlaybackEnabled = GUILayout.Toggle(
+            LandfallConfig.CurrentConfig.YouTubePlaybackEnabled,
+            "Enable YouTube Playback");
+
+        if (LandfallConfig.CurrentConfig.YouTubePlaybackEnabled)
+        {
+
+            
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Playlist tracks amount to load:", GUILayout.Width(180));
+            GUILayout.Label($"{LandfallConfig.CurrentConfig.PlaylistRange}", GUI.skin.textField,GUILayout.Width(35));
+            LandfallConfig.CurrentConfig.PlaylistRange = Mathf.RoundToInt(GUILayout.HorizontalSlider(
+                LandfallConfig.CurrentConfig.PlaylistRange, 25, 250));
+            GUILayout.EndHorizontal();
+            // Cookies source selection
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Cookies:", GUILayout.Width(80));
+            string[] cookieSources = { "None", "Chrome", "Firefox", "cookies.txt" };
+            int oldSource = LandfallConfig.CurrentConfig.YouTubeCookiesSource;
+            int newSource = GUILayout.SelectionGrid(oldSource, cookieSources, 4);
+            if (newSource != oldSource)
+            {
+                LandfallConfig.CurrentConfig.YouTubeCookiesSource = newSource;
+            }
+            GUILayout.EndHorizontal();
+
+
+            // Custom arguments input
+            GUILayout.BeginVertical(GUI.skin.box);
+            GUILayout.Label("Custom arguments:");
+            string newArgs = GUILayout.TextArea(LandfallConfig.CurrentConfig.YouTubeCustomArgs, GUILayout.ExpandWidth(false), GUILayout.MaxWidth(500), GUILayout.Height(40));
+            if (newArgs != LandfallConfig.CurrentConfig.YouTubeCustomArgs)
+            {
+                LandfallConfig.CurrentConfig.YouTubeCustomArgs = newArgs;
+            }
+            GUILayout.EndVertical();
+
+            // Generated command preview (copyable but not editable)
+            string previewArgs = YtDlpStreamer.BuildYtDlpArguments("URL", false);
+            GUILayout.BeginVertical(GUI.skin.box);
+            GUILayout.Label("yt-dlp arguments:");
+            GUI.enabled = false; // read-only display
+            GUILayout.TextArea(previewArgs, GUILayout.ExpandWidth(false), GUILayout.MaxWidth(500), GUILayout.Height(40));
+            GUI.enabled = true;
+            GUILayout.EndVertical();
+
+
+
+            // Future feature toggle
+            LandfallConfig.CurrentConfig.YouTubeSaveListenedTracks = GUILayout.Toggle(
+                LandfallConfig.CurrentConfig.YouTubeSaveListenedTracks,
+                "Save listened tracks [If you need this, ask me in DISCORD]");
+        }
+        if (GUILayout.Button("Open YouTube Setup Guide", GUILayout.Height(30)))
+        {
+            YouTubeSetupWindow.Show();
+        }
+
+        GUILayout.EndVertical();
+        GUILayout.Space(10);
+    }
+
+    void DrawYouTubeDownloader()
     {
         GUILayout.Label("YOUTUBE DOWNLOADER", _headerStyle);
         GUILayout.BeginVertical(GUI.skin.box);
@@ -346,7 +412,7 @@ public class LandfallSettingsWindow : MonoBehaviour
             "add --cookies cookies.txt");
 
         GUILayout.Label("Generated flags:", GUILayout.Height(18));
-        GUILayout.TextField(GetYoutubeFlags(), GUILayout.ExpandWidth(false), GUILayout.MaxWidth(450));
+        GUILayout.TextField(GetYoutubeFlags(), GUILayout.ExpandWidth(false), GUILayout.MaxWidth(500));
 
         GUILayout.Space(5);
         GUILayout.BeginHorizontal();
@@ -507,7 +573,7 @@ public class LandfallSettingsWindow : MonoBehaviour
         GUILayout.Label("Feel free to replace ICON.png with own .png image. Need restart.");
         GUILayout.FlexibleSpace();
         GUILayout.EndHorizontal();
-        GUILayout.EndVertical(); 
+        GUILayout.EndVertical();
 
         GUILayout.EndVertical();
         GUILayout.Space(10);

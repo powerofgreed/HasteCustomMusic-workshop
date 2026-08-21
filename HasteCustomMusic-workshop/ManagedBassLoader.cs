@@ -76,7 +76,7 @@ public static class ManagedBassLoader
                     Debug.LogError("[ManagedBassLoader] BASS verification failed");
                     return false;
                 }
-
+                Bass.Configure(Configuration.NetPreBuffer, 33);
                 _initialized = true;
                 Debug.Log("[ManagedBassLoader] BASS initialized successfully!");
                 return true;
@@ -264,7 +264,7 @@ public static class ManagedBassLoader
     {
         try
         {
-            string[] Plugins = { "bassflac.dll", "bassopus.dll", "bass_aac.dll", "bass_ac3.dll", "bass_mpc.dll", "bass_spx.dll", "bass_tta.dll", "bassalac.dll", "basshls.dll", "bassmidi.dll", "bassmix.dll" };
+            string[] Plugins = { "bassflac.dll", "bassopus.dll", "bass_aac.dll", "bass_ac3.dll", "bass_mpc.dll", "bass_spx.dll", "bass_tta.dll", "bassalac.dll", "basshls.dll", "bassmidi.dll", "bassmix.dll", "basswebm.dll" };
             int loadedCount = 0;
 
             foreach (string plugin in Plugins)

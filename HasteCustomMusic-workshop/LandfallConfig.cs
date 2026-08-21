@@ -58,6 +58,14 @@ public static class LandfallConfig
         public Color MiniPlayerFontColor = Color.white;
         // Optionally add cover border color if you want separate control:
         public Color MiniPlayerCoverBorderColor = Color.white;
+
+        // YouTube Playback
+        public bool YouTubeSetupConfirmed = false;
+        public bool YouTubePlaybackEnabled = true;      // master toggle
+        public int YouTubeCookiesSource = 0; // 0=None, 1=Chrome, 2=Firefox, 3=cookies.txt
+        public string YouTubeCustomArgs = string.Empty; // user-defined extra yt-dlp arguments
+        public bool YouTubeSaveListenedTracks = false;
+        public int PlaylistRange = 100;
     }
 
     [Serializable]

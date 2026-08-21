@@ -13,9 +13,9 @@ using DrawingImage = System.Drawing.Image;
 using DrawingImageLockMode = System.Drawing.Imaging.ImageLockMode;
 using DrawingPixelFormat = System.Drawing.Imaging.PixelFormat;
 using DrawingRectangle = System.Drawing.Rectangle;
+using FontStyle = TMPro.FontStyles;
 using Image = UnityEngine.UI.Image;
 using Object = UnityEngine.Object;
-using FontStyle = TMPro.FontStyles;
 
 public class MiniPlayerManager : MonoBehaviour
 {
@@ -139,7 +139,22 @@ public class MiniPlayerManager : MonoBehaviour
             StopCoroutine(_coverResetCoroutine);
             _coverResetCoroutine = null;
         }
-        SetCoverFromPictureDataAsync(pictureData);
+
+        if (pictureData == null || pictureData.Length == 0)
+            return;
+
+        // Main thread is fine for these small textures.
+        var texture = new Texture2D(2, 2);
+        if (texture.LoadImage(pictureData))
+        {
+            MiniPlayer.SetAlbumCover(texture);
+            _currentCoverTexture = texture;   // keep reference for color scheme
+        }
+        else
+        {
+            Destroy(texture);
+            Debug.LogWarning("[MiniPlayerManager] Failed to load cover image.");
+        }
     }
 
 
@@ -186,6 +201,7 @@ public class MiniPlayerManager : MonoBehaviour
 
     private void OnNewTrackStarted(string trackIdentifier)
     {
+        CustomMusicManager.PrefetchTriggeredForCurrentTrack = false;
         if (trackIdentifier == _currentFilePath)
             return;
 
@@ -285,7 +301,9 @@ public class MiniPlayerManager : MonoBehaviour
         // Detect new track by file path change
         string currentPath = sc.CurrentPath;
         if (!string.IsNullOrEmpty(currentPath) && currentPath != _currentFilePath)
+        {
             OnNewTrackStarted(currentPath);
+        }
 
         // Update text fields
         string title = StreamingClip.CurrentStreamTitle;
@@ -323,81 +341,6 @@ public class MiniPlayerManager : MonoBehaviour
         MiniPlayer.SetProgress(_smoothedProgress);
     }
 
-    // ---- Asynchronous cover loading ----
-    private void SetCoverFromPictureDataAsync(byte[] pictureData)
-    {
-        if (pictureData == null || pictureData.Length == 0)
-            return;
-
-        Task.Run(() =>
-        {
-            try
-            {
-                using (var ms = new MemoryStream(pictureData))
-                using (DrawingImage original = DrawingImage.FromStream(ms))
-                {
-                    const int targetSize = 140;
-                    int width, height;
-
-                    using (DrawingBitmap resized = new DrawingBitmap(original, new Size(targetSize, targetSize)))
-                    {
-                        width = resized.Width;
-                        height = resized.Height;
-                        var rect = new DrawingRectangle(0, 0, width, height);
-                        var bmpData = resized.LockBits(rect, DrawingImageLockMode.ReadOnly, DrawingPixelFormat.Format32bppArgb);
-                        int stride = Math.Abs(bmpData.Stride);
-                        int bytes = stride * height;
-                        byte[] rgba = new byte[bytes];
-                        System.Runtime.InteropServices.Marshal.Copy(bmpData.Scan0, rgba, 0, bytes);
-                        resized.UnlockBits(bmpData);
-
-                        // Flip vertically (bottom‑up to top‑down)
-                        byte[] flipped = new byte[rgba.Length];
-                        for (int y = 0; y < height; y++)
-                        {
-                            int srcY = height - 1 - y;
-                            Buffer.BlockCopy(rgba, srcY * stride, flipped, y * stride, stride);
-                        }
-                        rgba = flipped;
-
-                        // Convert BGRA to RGBA
-                        for (int i = 0; i < rgba.Length; i += 4)
-                        {
-                            byte b = rgba[i];
-                            byte g = rgba[i + 1];
-                            byte r = rgba[i + 2];
-                            byte a = rgba[i + 3];
-                            rgba[i] = r;
-                            rgba[i + 1] = g;
-                            rgba[i + 2] = b;
-                            rgba[i + 3] = a;
-                        }
-
-                        // Send to main thread
-                        MainThreadInvoke(() =>
-                        {
-                            var tex = new Texture2D(width, height, TextureFormat.RGBA32, false);
-                            tex.LoadRawTextureData(rgba);
-                            tex.Apply();
-
-                            MiniPlayer.SetAlbumCover(tex);
-                            _currentCoverTexture = tex;
-
-                            if (LandfallConfig.CurrentConfig.MiniPlayerUseCoverColor)
-                            {
-                                Color avg = MiniPlayer.ComputeAverageColor(tex);
-                                MiniPlayer.ApplyColorSchemeFromAccent(avg);
-                            }
-                        });
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"Cover decode error: {ex.Message}");
-            }
-        });
-    }
 
     // ---- Color scheme update ----
     private void UpdateColorScheme()
@@ -408,8 +351,7 @@ public class MiniPlayerManager : MonoBehaviour
 
         if (useCoverColor)
         {
-            Color avg = MiniPlayer.ComputeAverageColor(_currentCoverTexture);
-            MiniPlayer.ApplyColorSchemeFromAccent(avg);
+            MiniPlayer.ApplyAutomaticCoverColorScheme(_currentCoverTexture);
             MiniPlayer.ApplyAlphaOverrides(isCustom: false);
             return;
         }
@@ -485,6 +427,12 @@ public static class MiniPlayer
     private static Color _currentFontColor = Color.white;
     private static Coroutine _fontLerpCoroutine;
     private static MonoBehaviour _coroutineRunner;
+    public enum BackgroundPreference
+    {
+        Neutral,
+        Vibrant,
+        Dark
+    }
 
     private static bool _isCoverPlaceholder = true;
     public static bool IsCoverPlaceholder => _isCoverPlaceholder;
@@ -493,7 +441,8 @@ public static class MiniPlayer
     private static string IconCoverPath => Path.Combine(LandfallConfig.ConfigDirectory, "ICON.png");
     private static Texture2D _defaultLogoTex;
     private static Texture2D _defaultIconTex;
-    private static bool Colored = false;
+    private static AspectRatioFitter _albumCoverFitter;
+    private static RectTransform _albumCoverMaskRect;
 
 
     static void awake()
@@ -559,6 +508,7 @@ public static class MiniPlayer
         _backgroundImage.material = null;
 
 
+
         // ===== Album Cover Border  =====
         var coverBorderGO = new GameObject("CoverBorder", typeof(RectTransform), typeof(Image));
         coverBorderGO.transform.SetParent(bgGO.transform, false);
@@ -571,17 +521,29 @@ public static class MiniPlayer
         _albumBorderCover = coverBorderGO.GetComponent<Image>();
         _albumBorderCover.raycastTarget = false;
 
-        // Album cover
-        var albumGO = new GameObject("AlbumCover", typeof(RectTransform), typeof(Image));
-        albumGO.transform.SetParent(bgGO.transform, false);
+        // ===== Album Cover Mask (crops overflow) =====
+        var coverMaskGO = new GameObject("AlbumCoverMask", typeof(RectTransform), typeof(RectMask2D));
+        coverMaskGO.transform.SetParent(bgGO.transform, false);
+        _albumCoverMaskRect = coverMaskGO.GetComponent<RectTransform>();
+        _albumCoverMaskRect.anchorMin = Vector2.zero;
+        _albumCoverMaskRect.anchorMax = Vector2.zero;
+        _albumCoverMaskRect.pivot = Vector2.zero;
+        _albumCoverMaskRect.anchoredPosition = new Vector2(5, 5);
+        _albumCoverMaskRect.sizeDelta = new Vector2(140, 140);
+
+        // ===== Album Cover  =====
+        var albumGO = new GameObject("AlbumCover", typeof(RectTransform), typeof(Image), typeof(AspectRatioFitter));
+        albumGO.transform.SetParent(coverMaskGO.transform, false);
         var albumRect = albumGO.GetComponent<RectTransform>();
-        albumRect.anchorMin = Vector2.zero;
-        albumRect.anchorMax = Vector2.zero;
-        albumRect.pivot = Vector2.zero;
-        albumRect.anchoredPosition = new Vector2(5, 5);
-        albumRect.sizeDelta = new Vector2(140, 140);
+        albumRect.anchorMin = new Vector2(0.5f, 0.5f);
+        albumRect.anchorMax = new Vector2(0.5f, 0.5f);
+        albumRect.pivot = new Vector2(0.5f, 0.5f);
+        albumRect.anchoredPosition = Vector2.zero;
+        albumRect.sizeDelta = new Vector2(140f, 140f);
         _albumCoverImage = albumGO.GetComponent<Image>();
         _albumCoverImage.raycastTarget = false;
+        _albumCoverFitter = albumGO.GetComponent<AspectRatioFitter>();
+        _albumCoverFitter.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
         ResetAlbumCoverToDefault();
         coverBorderGO.transform.SetSiblingIndex(0);
         albumGO.transform.SetSiblingIndex(1);
@@ -724,6 +686,7 @@ public static class MiniPlayer
 
     public static void SetAlbum(string albumName)
     {
+        _nameText.maxVisibleLines = albumName != null ? 2 : 4;
         if (_albumText != null)
             _albumText.text = SanitizeText(albumName);
     }
@@ -760,9 +723,20 @@ public static class MiniPlayer
             Object.Destroy(_currentAlbumTexture);
         _currentAlbumTexture = texture;
 
-        var sprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f));
-        _albumCoverImage.sprite = sprite;
+        _albumCoverImage.sprite = Sprite.Create(
+            texture,
+            new Rect(0, 0, texture.width, texture.height),
+            new Vector2(0.5f, 0.5f));
+
         _albumCoverImage.color = Color.white;
+        _albumCoverImage.preserveAspect = false;
+
+        if (_albumCoverFitter != null)
+        {
+            _albumCoverFitter.aspectRatio = (float)texture.width / texture.height;
+            _albumCoverFitter.SetLayoutHorizontal();
+            _albumCoverFitter.SetLayoutVertical();
+        }
     }
 
     private static Sprite CreatePlaceholderSprite()
@@ -776,13 +750,30 @@ public static class MiniPlayer
     public static void ResetAlbumCoverToDefault()
     {
         _isCoverPlaceholder = true;
-        Texture2D selectedTex = LandfallConfig.CurrentConfig.UseIconAsDefaultCover ? _defaultIconTex : _defaultLogoTex;
-        if (selectedTex == null) selectedTex = _defaultLogoTex; // safety fallback
+        Texture2D selectedTex = LandfallConfig.CurrentConfig.UseIconAsDefaultCover
+            ? _defaultIconTex
+            : _defaultLogoTex;
 
-        if (selectedTex == null) return;
+        if (selectedTex == null)
+            selectedTex = _defaultLogoTex;
 
-        _albumCoverImage.sprite = Sprite.Create(selectedTex, new Rect(0, 0, selectedTex.width, selectedTex.height), new Vector2(0.5f, 0.5f));
+        if (selectedTex == null)
+            return;
+
+        _albumCoverImage.sprite = Sprite.Create(
+            selectedTex,
+            new Rect(0, 0, selectedTex.width, selectedTex.height),
+            new Vector2(0.5f, 0.5f));
+
         _albumCoverImage.color = Color.white;
+        _albumCoverImage.preserveAspect = false;
+
+        if (_albumCoverFitter != null)
+        {
+            _albumCoverFitter.aspectRatio = (float)selectedTex.width / selectedTex.height;
+            _albumCoverFitter.SetLayoutHorizontal();
+            _albumCoverFitter.SetLayoutVertical();
+        }
     }
 
 
@@ -796,7 +787,7 @@ public static class MiniPlayer
             {
                 if (_backgroundMaterial == null)
                 {
-                    _backgroundMaterial = FindMaterialByName("M_UI_ItemTooltip_Legendary");
+                    _backgroundMaterial = FindMaterialByName("M_UI_ItemTooltip_UnlockScreenRow");
                     if (_backgroundMaterial != null) ApplyBackgroundMaterial();
                 }
 
@@ -808,7 +799,7 @@ public static class MiniPlayer
 
                 if (_coverBorderMaterial == null)
                 {
-                    _coverBorderMaterial = FindMaterialByName("M_UI_ItemTooltip_Legendary");
+                    _coverBorderMaterial = FindMaterialByName("M_UI_ItemTooltip_UnlockScreenRow");
                     if (_coverBorderMaterial != null) ApplyCoverBorderMaterial();
                 }
 
@@ -922,7 +913,7 @@ public static class MiniPlayer
     private static Material FindMaterialByName(string namePart)
     {
         foreach (var mat in Resources.FindObjectsOfTypeAll<Material>())
-            if (mat != null && mat.name.Contains(namePart))
+            if (mat != null && mat.name ==namePart)
                 return mat;
         return null;
     }
@@ -1000,33 +991,6 @@ public static class MiniPlayer
         _fontLerpCoroutine = _coroutineRunner.StartCoroutine(FontLerpCoroutine(target));
     }
 
-    public static Color ComputeAverageColor(Texture2D texture, int samplesPerAxis = 16)
-    {
-        if (texture == null) return Color.white;
-
-        int width = texture.width;
-        int height = texture.height;
-        int stepX = Mathf.Max(1, width / samplesPerAxis);
-        int stepY = Mathf.Max(1, height / samplesPerAxis);
-
-        float r = 0f, g = 0f, b = 0f;
-        int count = 0;
-
-        for (int y = 0; y < height; y += stepY)
-        {
-            for (int x = 0; x < width; x += stepX)
-            {
-                Color pixel = texture.GetPixel(x, y);
-                r += pixel.r;
-                g += pixel.g;
-                b += pixel.b;
-                count++;
-            }
-        }
-
-        if (count == 0) return Color.white;
-        return new Color(r / count, g / count, b / count);
-    }
     private static float GetLuminance(Color c)
     {
         return 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
@@ -1218,7 +1182,389 @@ public static class MiniPlayer
         if (_canvasGroup != null)
             _canvasGroup.alpha = opacity;
     }
+    // ------------------------------------------------------------------
+    // Color science helpers
+    // ------------------------------------------------------------------
+
+    private static float LinearizeChannel(float srgb)
+    {
+        return (srgb <= 0.04045f) ? srgb / 12.92f : Mathf.Pow((srgb + 0.055f) / 1.055f, 2.4f);
+    }
+
+    private static float ComputeLuminance(Color c)
+    {
+        float r = LinearizeChannel(c.r);
+        float g = LinearizeChannel(c.g);
+        float b = LinearizeChannel(c.b);
+        return 0.2126f * r + 0.7152f * g + 0.0722f * b;
+    }
+
+    private static float ComputeContrastRatio(Color a, Color b)
+    {
+        float l1 = ComputeLuminance(a);
+        float l2 = ComputeLuminance(b);
+        float lighter = Mathf.Max(l1, l2);
+        float darker = Mathf.Min(l1, l2);
+        return (lighter + 0.05f) / (darker + 0.05f);
+    }
+
+    private static float GetSaturation(Color c)
+    {
+        float max = Mathf.Max(c.r, Mathf.Max(c.g, c.b));
+        float min = Mathf.Min(c.r, Mathf.Min(c.g, c.b));
+        return max == 0 ? 0 : (max - min) / max;
+    }
+
+    // ------------------------------------------------------------------
+    // Palette extraction
+    // ------------------------------------------------------------------
+
+    private static List<KeyValuePair<Color, int>> ExtractPalette(Texture2D texture, int maxColors = 8, int samplesPerAxis = 16)
+    {
+        var palette = new Dictionary<Color, int>();
+        if (texture == null) return palette.ToList();
+
+        int stepX = Mathf.Max(1, texture.width / samplesPerAxis);
+        int stepY = Mathf.Max(1, texture.height / samplesPerAxis);
+
+        for (int y = 0; y < texture.height; y += stepY)
+        {
+            for (int x = 0; x < texture.width; x += stepX)
+            {
+                Color pixel = texture.GetPixel(x, y);
+
+                // Quantize to 4 bits per channel (16 levels) to reduce distinct colors
+                int r = Mathf.RoundToInt(pixel.r * 15f);
+                int g = Mathf.RoundToInt(pixel.g * 15f);
+                int b = Mathf.RoundToInt(pixel.b * 15f);
+                Color quantized = new Color(r / 15f, g / 15f, b / 15f, 1f);
+
+                if (palette.ContainsKey(quantized))
+                    palette[quantized]++;
+                else
+                    palette[quantized] = 1;
+            }
+        }
+
+        // Order by frequency descending, take top maxColors
+        return palette.OrderByDescending(kv => kv.Value).Take(maxColors).ToList();
+    }
+
+    // ------------------------------------------------------------------
+    // Cover-based color scheme (new algorithm)
+    // ------------------------------------------------------------------
+
+    public static void ApplyCoverColorSchemeFromTexture(Texture2D texture, BackgroundPreference preference)
+    {
+        if (texture == null) return;
+
+        var palette = ExtractPalette(texture, 8);
+        if (palette.Count == 0)
+        {
+            ApplyDefaultColors();
+            return;
+        }
+
+        Color background;
+        Color textColor;
+
+        switch (preference)
+        {
+            case BackgroundPreference.Neutral:
+                {
+                    // Check if palette is predominantly desaturated (saturation < 0.2)
+                    int desaturatedCount = palette
+                        .Where(kv => GetSaturation(kv.Key) < 0.2f)
+                        .Sum(kv => kv.Value);
+                    int totalCount = palette.Sum(kv => kv.Value);
+                    bool predominantlyDesaturated = totalCount > 0 && (desaturatedCount / (float)totalCount > 0.5f);
+
+                    if (predominantlyDesaturated)
+                    {
+                        // Lightest desaturated color as background
+                        background = palette
+                            .Where(kv => GetSaturation(kv.Key) < 0.2f)
+                            .OrderByDescending(kv => ComputeLuminance(kv.Key))
+                            .First().Key;
+
+                        // Most frequent gray (R≈G≈B) as text base
+                        Color mostFrequentGray = palette
+                            .Where(kv => IsGray(kv.Key))
+                            .OrderByDescending(kv => kv.Value)
+                            .FirstOrDefault().Key;
+
+                        if (mostFrequentGray == default(Color))
+                            mostFrequentGray = Color.gray;
+
+                        // Adjust gray luminance until contrast >= 4.5 against background
+                        textColor = AdjustContrast(mostFrequentGray, background, 4.5f);
+                    }
+                    else
+                    {
+                        // Fallback to Vibrant logic
+                        (background, textColor) = GetVibrantColors(palette);
+                    }
+                    break;
+                }
+
+            case BackgroundPreference.Vibrant:
+                {
+                    (background, textColor) = GetVibrantColors(palette);
+                    break;
+                }
+
+            case BackgroundPreference.Dark:
+                {
+                    // Absolute darkest color as background
+                    background = palette.OrderBy(kv => ComputeLuminance(kv.Key)).First().Key;
+
+                    // Text: try bright + saturated "glow" color, then best contrast, then white
+                    textColor = Color.white;
+
+                    // Find brightest highly saturated color (like a star)
+                    var starColor = palette
+                        .Where(kv => kv.Key != background && GetSaturation(kv.Key) > 0.5f)
+                        .OrderByDescending(kv => ComputeLuminance(kv.Key))
+                        .FirstOrDefault().Key;
+
+                    if (starColor != default(Color))
+                    {
+                        float contrast = ComputeContrastRatio(starColor, background);
+                        if (contrast >= 4.5f)
+                        {
+                            textColor = starColor;
+                            break;
+                        }
+                    }
+
+                    // Fallback to most saturated color (original logic)
+                    var saturatedColor = palette
+                        .Where(kv => kv.Key != background)
+                        .OrderByDescending(kv => GetSaturation(kv.Key))
+                        .FirstOrDefault().Key;
+
+                    if (saturatedColor != default(Color))
+                    {
+                        float contrast = ComputeContrastRatio(saturatedColor, background);
+                        if (contrast >= 4.5f)
+                        {
+                            textColor = saturatedColor;
+                            break;
+                        }
+                    }
+
+                    // Fallback to best contrast color
+                    var bestContrastColor = palette
+                        .Where(kv => kv.Key != background)
+                        .OrderByDescending(kv => ComputeContrastRatio(kv.Key, background))
+                        .FirstOrDefault().Key;
+
+                    if (bestContrastColor != default(Color))
+                    {
+                        float contrast = ComputeContrastRatio(bestContrastColor, background);
+                        if (contrast >= 4.5f)
+                            textColor = bestContrastColor;
+                    }
+                    break;
+                }
+
+            default:
+                (background, textColor) = GetVibrantColors(palette);
+                break;
+        }
+
+        // Accent color extraction
+        Color accent = palette
+            .Where(kv => kv.Key != background)
+            .OrderByDescending(kv => ComputeContrastRatio(kv.Key, background))
+            .FirstOrDefault().Key;
+
+        if (accent == default(Color) || GetSaturation(accent) < 0.2f)
+            accent = textColor;
 
 
+        if (GetSaturation(textColor) > 0.2f)
+        {
+            textColor = AdjustVibrantForUiPanel(textColor, background);
+        }
 
+        // Apply colors
+        ApplyCustomColors(
+            background,
+            accent,
+            WithAlpha(textColor, 0.3f),
+            textColor,
+            textColor
+        );
+
+        StartFontLerp(textColor);
+    }
+
+    public static void ApplyAutomaticCoverColorScheme(Texture2D texture)
+    {
+        if (texture == null) return;
+
+        var palette = ExtractPalette(texture, 8);
+        if (palette.Count == 0)
+        {
+            ApplyDefaultColors();
+            return;
+        }
+
+        // 1. Check the TOP color (most frequent). This is the dominant background.
+        Color topColor = palette.First().Key;
+        float topSaturation = GetSaturation(topColor);
+        float topLuminance = ComputeLuminance(topColor);
+
+        // 2. Check the TOP 3 colors combined.
+        float avgTop3Saturation = palette.Take(3).Average(kv => GetSaturation(kv.Key));
+
+        BackgroundPreference mode;
+
+        // NEW: Scan the whole palette for any highly saturated accent, regardless of area.
+        bool hasSaturatedAccent = palette.Any(kv => GetSaturation(kv.Key) > 0.4f);
+        bool completelyUniformGray = palette.Count == 1 && IsGray(palette.First().Key);
+
+        if (completelyUniformGray)
+        {
+            mode = BackgroundPreference.Neutral;   // obviously no color, fall back to neutral
+        }
+        else if (hasSaturatedAccent || topSaturation > 0.4f || avgTop3Saturation > 0.4f)
+        {
+            // If any strong color exists, never use Neutral. Pick Dark or Vibrant.
+            if (topLuminance < 0.2f)
+                mode = BackgroundPreference.Dark;
+            else
+                mode = BackgroundPreference.Vibrant;
+        }
+        else
+        {
+            // Only if the palette is truly gray (no saturated accent anywhere) do we allow Neutral.
+            int desaturatedCount = palette
+                .Where(kv => GetSaturation(kv.Key) < 0.2f)
+                .Sum(kv => kv.Value);
+            int totalCount = palette.Sum(kv => kv.Value);
+            bool predominantlyNeutral = totalCount > 0 && (desaturatedCount / (float)totalCount > 0.7f);
+
+            mode = predominantlyNeutral ? BackgroundPreference.Neutral : BackgroundPreference.Vibrant;
+        }
+
+        ApplyCoverColorSchemeFromTexture(texture, mode);
+    }
+
+    private static bool IsGray(Color c)
+    {
+        return Mathf.Abs(c.r - c.g) < 0.05f && Mathf.Abs(c.g - c.b) < 0.05f;
+    }
+
+    private static Color AdjustContrast(Color source, Color background, float targetContrast)
+    {
+        float currentContrast = ComputeContrastRatio(source, background);
+        if (currentContrast >= targetContrast)
+            return source;
+
+        float bgLuminance = ComputeLuminance(background);
+        bool needDarker = bgLuminance > 0.5f;
+        bool needLighter = bgLuminance < 0.5f;
+
+        Color adjusted = source;
+        for (int i = 0; i < 20; i++)
+        {
+            if (needDarker)
+                adjusted *= 0.8f;
+            else if (needLighter)
+                adjusted = Color.Lerp(adjusted, Color.white, 0.2f);
+            else
+                break;
+
+            if (ComputeContrastRatio(adjusted, background) >= targetContrast)
+                return adjusted;
+        }
+
+        return needDarker ? Color.black : Color.white;
+    }
+
+    private static (Color background, Color text) GetVibrantColors(List<KeyValuePair<Color, int>> palette)
+    {
+        Color background = palette.FirstOrDefault(kv => GetSaturation(kv.Key) > 0.7f).Key;
+
+        if (background == default(Color))
+            background = palette.OrderBy(kv => ComputeLuminance(kv.Key)).First().Key;
+
+        float bgLuminance = ComputeLuminance(background);
+        Color textColor;
+
+        if (bgLuminance > 0.45f)
+        {
+            textColor = Color.black;
+        }
+        else
+        {
+            textColor = Color.white;
+            var saturated = palette
+                .Where(kv => kv.Key != background)
+                .OrderByDescending(kv => GetSaturation(kv.Key))
+                .FirstOrDefault().Key;
+
+            if (saturated != default(Color))
+            {
+                float contrast = ComputeContrastRatio(saturated, background);
+                if (contrast >= 4.5f)
+                    textColor = saturated;
+            }
+        }
+
+        // Final contrast enforcement
+        if (ComputeContrastRatio(textColor, background) < 4.5f)
+            textColor = bgLuminance > 0.45f ? Color.black : Color.white;
+
+        return (background, textColor);
+    }
+    private static Color AdjustVibrantForUiPanel(Color vibrantColor, Color uiPanelColor)
+    {
+        float contrast = ComputeContrastRatio(vibrantColor, uiPanelColor);
+        if (contrast >= 4.5f) return vibrantColor;
+
+        // Try the purest, brightest version of this hue
+        Color.RGBToHSV(vibrantColor, out float h, out float s, out float v);
+        Color maxVibrant = Color.HSVToRGB(h, 1.0f, 1.0f);
+        if (ComputeContrastRatio(maxVibrant, uiPanelColor) >= 4.5f)
+            return maxVibrant;
+
+        float uiLum = ComputeLuminance(uiPanelColor);
+        Color adjusted = vibrantColor;
+
+        for (int i = 0; i < 20; i++)
+        {
+            if (uiLum > 0.5f)
+            {
+                // UI is Light -> Darken the vibrant color
+                adjusted.r *= 0.8f;
+                adjusted.g *= 0.8f;
+                adjusted.b *= 0.8f;
+            }
+            else
+            {
+                // UI is Dark -> Brighten the vibrant color
+                adjusted.r = Mathf.Lerp(adjusted.r, 1.0f, 0.2f);
+                adjusted.g = Mathf.Lerp(adjusted.g, 1.0f, 0.2f);
+                adjusted.b = Mathf.Lerp(adjusted.b, 1.0f, 0.2f);
+            }
+
+            float newContrast = ComputeContrastRatio(adjusted, uiPanelColor);
+            float newSaturation = GetSaturation(adjusted);
+
+            if (newContrast >= 4.5f)
+            {
+                // Only accept the adjusted colour if it's still vivid (not muddy/gray)
+                if (newSaturation >= 0.3f)
+                    return adjusted;
+                else
+                    break;   // contrast is fine but colour is washed out – fall back to black/white
+            }
+        }
+
+        // Ultimate fallback: guarantee readability by forcing black or white
+        return uiLum > 0.5f ? Color.black : Color.white;
+    }
 }
