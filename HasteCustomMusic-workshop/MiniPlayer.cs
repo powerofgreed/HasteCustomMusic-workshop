@@ -680,13 +680,14 @@ public static class MiniPlayer
 
     public static void SetTrackName(string newName)
     {
+        _nameText.maxVisibleLines = _artistText.text == null || _artistText.text == string.Empty ? 4 : 2;
         if (_nameText != null)
             _nameText.text = SanitizeText(newName);
     }
 
     public static void SetAlbum(string albumName)
     {
-        _nameText.maxVisibleLines = albumName != null ? 2 : 4;
+        
         if (_albumText != null)
             _albumText.text = SanitizeText(albumName);
     }
