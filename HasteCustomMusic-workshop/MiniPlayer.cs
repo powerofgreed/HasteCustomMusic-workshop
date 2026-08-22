@@ -1166,7 +1166,7 @@ public static class MiniPlayer
     public static Vector2 GetOffscreenAnchoredPosition()
     {
         float scale = LandfallConfig.CurrentConfig.MiniPlayerScale;
-        float offscreenX = -(_bgRect.sizeDelta.x * scale) - 50f; // width + margin
+        float offscreenX = -(_bgRect.sizeDelta.x * scale) - 50f * scale; // width + margin
         return new Vector2(offscreenX, -LandfallConfig.CurrentConfig.MiniPlayerPositionY);
     }
 
